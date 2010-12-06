@@ -19,11 +19,10 @@ namespace ShinyConsole {
 	}
 
 	[System.ComponentModel.DesignerCategory("")]
-	public class BasicShinyConsoleForm<CC> : Form where CC : ConsoleCharacter, new() {
+	public class BasicShinyConsoleForm<CC> : Form where CC : struct, IConsoleCharacter {
 		static readonly Direct3D D3D = new Direct3D();
 
-		CC[,] Buffer;
-		public CC this[ int x, int y ] { get { return Buffer[x,y]; }}
+		protected CC[,] Buffer;
 		public new int Width  { get { return Buffer.GetLength(0); }}
 		public new int Height { get { return Buffer.GetLength(1); }}
 		public Size GlyphSize = new Size(12,12);
@@ -47,33 +46,12 @@ namespace ShinyConsole {
 			}
 		}
 
-		Font DefaultFont;
-
 		public BasicShinyConsoleForm( int w, int h ) {
 			Font = new System.Drawing.Font( "Courier New", 7f );
 
 			SetupDevice();
 			Buffer = new CC[w,h];
-
-			DefaultFont = ShinyConsole.Font.FromGdiFont( Font, 12, 12 );
-			Resize( w, h );
-
 			ClientSize = new Size( Width*GlyphSize.Width, Height*GlyphSize.Height );
-		}
-
-		public void Fill( Func<CC> fill ) {
-			var w=Width;
-			var h=Height;
-			for ( int y=0 ; y<h ; ++y )
-			for ( int x=0 ; x<w ; ++x )
-			{
-				Buffer[x,y] = fill();
-			}
-		}
-
-		public new void Resize( int w, int h ) {
-			Buffer = new CC[w,h];
-			Fill(()=>new CC() { Font=DefaultFont, Glyph=' ', Foreground=0xFFFFFFFFu, Background=0xFF000000u });
 		}
 
 		protected override void OnResize( EventArgs e ) {
