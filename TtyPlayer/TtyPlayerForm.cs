@@ -230,7 +230,14 @@ namespace TtyPlayer {
 			var start = DateTime.Now;
 			var packeti = 0;
 
+			var frames = new Queue<DateTime>();
+
 			MainLoop mainloop = () => {
+				var now = DateTime.Now;
+
+				frames.Enqueue(now);
+				while ( frames.Peek().AddSeconds(1)<now ) frames.Dequeue();
+
 				while ( packeti<packets.Count && start+packets[packeti].SinceStart < DateTime.Now ) {
 					SendPuttyTerminal( putty, false, packets[packeti].Payload );
 					++packeti;
@@ -261,7 +268,7 @@ namespace TtyPlayer {
 					}
 				}
 
-				form.Text = string.Format("TtyPlayer# -- Frame {0} of {1}",packeti,packets.Count);
+				form.Text = string.Format("TtyPlayer# -- {2} FPS -- Packet {0} of {1}",packeti,packets.Count,frames.Count);
 				form.Redraw();
 			};
 			form.KeyDown += (s,e) => {
