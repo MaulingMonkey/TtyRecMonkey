@@ -4,6 +4,11 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShinyConsole", "ShinyConsole\ShinyConsole.csproj", "{B246C8EE-F963-403A-893E-530B08BA7261}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TtyPlayer", "TtyPlayer\TtyPlayer.csproj", "{2409C96E-18FC-4420-A755-A2509F3B33C2}"
+	ProjectSection(ProjectDependencies) = postProject
+		{894037AC-374B-47FD-9FAB-5EA6B482D0C7} = {894037AC-374B-47FD-9FAB-5EA6B482D0C7}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PuttyDLL", "Putty\WINDOWS\MSVC\PUTTYDLL\puttydll.vcproj", "{894037AC-374B-47FD-9FAB-5EA6B482D0C7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -19,6 +24,10 @@ Global
 		{2409C96E-18FC-4420-A755-A2509F3B33C2}.Debug|x86.Build.0 = Debug|x86
 		{2409C96E-18FC-4420-A755-A2509F3B33C2}.Release|x86.ActiveCfg = Release|x86
 		{2409C96E-18FC-4420-A755-A2509F3B33C2}.Release|x86.Build.0 = Release|x86
+		{894037AC-374B-47FD-9FAB-5EA6B482D0C7}.Debug|x86.ActiveCfg = Debug|Win32
+		{894037AC-374B-47FD-9FAB-5EA6B482D0C7}.Debug|x86.Build.0 = Debug|Win32
+		{894037AC-374B-47FD-9FAB-5EA6B482D0C7}.Release|x86.ActiveCfg = Release|Win32
+		{894037AC-374B-47FD-9FAB-5EA6B482D0C7}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
