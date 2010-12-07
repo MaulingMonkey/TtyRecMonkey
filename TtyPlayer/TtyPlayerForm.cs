@@ -123,8 +123,8 @@ namespace TtyPlayer {
 			public bool Bold        { get { return (0x040000u & attr) != 0; }}
 			public bool Underline   { get { return (0x080000u & attr) != 0; }}
 			public bool Reverse     { get { return (0x100000u & attr) != 0; }}
-			public uint ForegroundI { get { return (0x0001FFu & attr) >> 0; }}
-			public uint BackgroundI { get { return (0x03FE00u & attr) >> 9; }}
+			public uint ForegroundI { get { var fg=(0x0001FFu & attr) >> 0; if ( fg<16 && Bold ) fg|=8; if ( fg>255 && Bold ) fg|=1; return fg; }} // TODO: Reverse modes
+			public uint BackgroundI { get { var bg=(0x03FE00u & attr) >> 9; if ( bg<16 && Blink) bg|=8; if ( bg>255 && Blink) bg|=1; return bg; }}
 			public uint Colors      { get { return (0x03FFFFu & attr) >> 9; }}
 
 			public uint Foreground { get { return ColorTable[(int)ForegroundI]; }}
@@ -159,7 +159,7 @@ namespace TtyPlayer {
 				for ( uint g=0 ; g<6 ; ++g )
 				for ( uint b=0 ; b<6 ; ++b )
 				{
-					ColorTable.Add( (0xFFu<<24) + ((33u*r)<<16) + ((33u*g)<<8) + ((33u*b)<<0) );
+					ColorTable.Add( (0xFFu<<24) + ((42u*r)<<16) + ((42u*g)<<8) + ((42u*b)<<0) );
 				}
 
 				for ( uint grey=0 ; grey<24 ; ++grey ) {
@@ -172,7 +172,7 @@ namespace TtyPlayer {
 				ColorTable.Add( 0xFFE0E0E0 ); // default foreground
 				ColorTable.Add( 0xFFFFFFFF ); // default bold foreground
 				ColorTable.Add( 0xFF000000 ); // default background
-				ColorTable.Add( 0xFF000000 ); // default bold background
+				ColorTable.Add( 0xFF404040 ); // default bold background
 				ColorTable.Add( 0xFF00FF00 ); // cursor foreground
 				ColorTable.Add( 0xFF00FF00 ); // cursor background
 			}
@@ -234,7 +234,7 @@ namespace TtyPlayer {
 			}
 
 			InitializePutty();
-			var putty = CreatePuttyTerminal( 80, 25 );
+			var putty = CreatePuttyTerminal( 80, 50 );
 
 			var start = DateTime.Now;
 			var packeti = 0;
@@ -252,28 +252,12 @@ namespace TtyPlayer {
 					++packeti;
 				}
 
-				for ( int y=0 ; y<25 ; ++y ) {
+				for ( int y=0 ; y<50 ; ++y ) {
 					var line = GetPuttyTerminalLine( putty, y );
 					for ( int x=0 ; x<80 ; ++x ) {
 						form.Buffer[x,y].Glyph = (char)(byte)(line[x].chr);
-#if true
 						form.Buffer[x,y].Foreground = line[x].Foreground;
 						form.Buffer[x,y].Background = line[x].Background;
-#else
-						var fgi = line[x].attr>>0 & 0x1FF;
-						var bgi = line[x].attr>>9 & 0x1FF;
-
-						if ( fgi<colors.Length ) {
-							form.Buffer[x,y].Foreground = colors[fgi];
-						} else {
-							//Debugger.Break();
-						}
-						if ( bgi<colors.Length ) {
-							form.Buffer[x,y].Background = colors[bgi];
-						} else {
-							//Debugger.Break();
-						}
-#endif
 					}
 				}
 
@@ -283,6 +267,16 @@ namespace TtyPlayer {
 			form.KeyDown += (s,e) => {
 				if ( e.KeyCode == Keys.Right && packeti<packets.Count ) SendPuttyTerminal( putty, false, packets[packeti++].Payload );
 			};
+#if false
+			form.MouseClick += (s,e) => {
+				var x = (e.X + form.GlyphOverlap.Width /2) / (form.GlyphSize.Width -form.GlyphOverlap.Width );
+				var y = (e.Y + form.GlyphOverlap.Height/2) / (form.GlyphSize.Height-form.GlyphOverlap.Height);
+				if ( x<0 || form.Width <=x ) return;
+				if ( y<0 || form.Height<=y ) return;
+				var line = GetPuttyTerminalLine( putty, y );
+				MessageBox.Show( form, String.Format("{0},{1} :=\n\tchr:'{2}'\n\tattr:{3}", x, y, (char)line[x].chr, line[x].attr ), "Character Data" );
+			};
+#endif
 
 			MessagePump.Run( form, mainloop );
 
