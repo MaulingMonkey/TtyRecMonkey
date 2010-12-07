@@ -8,6 +8,13 @@ namespace ShinyConsole {
 		public Bitmap Bitmap;
 		public Size   MaxGlyphSize;
 
+		public static Font FromBitmap( System.Drawing.Bitmap bitmap, int glyphw, int glyphh ) {
+			return new Font()
+				{ Bitmap = bitmap
+				, MaxGlyphSize = new Size(glyphw,glyphh)
+				};
+		}
+
 		public static Font FromGdiFont( System.Drawing.Font gdifont, int glyphw, int glyphh ) {
 			for ( int i=0 ; i<256 ; ++i ) {
 				var ch = (char)i;
@@ -27,7 +34,7 @@ namespace ShinyConsole {
 				for ( int x=0 ; x<16 ; ++x )
 				try
 				{
-					TextRenderer.DrawText( fx, ((char)(x+y*16)).ToString(), gdifont, new Rectangle( x*glyphw, y*glyphh, glyphw, glyphh ), Color.White, Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter );
+					TextRenderer.DrawText( fx, ((char)(x+y*16)).ToString(), gdifont, new Rectangle( x*glyphw+1, y*glyphh-2, glyphw, glyphh ), Color.White, Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter );
 				}
 				catch ( Exception )
 				{

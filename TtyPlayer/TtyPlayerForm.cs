@@ -26,8 +26,16 @@ namespace TtyPlayer {
 			char IConsoleCharacter.Glyph      { get { return Glyph; }}
 		}
 
-		static readonly Font StandardFont  = ShinyConsole.Font.FromGdiFont( new System.Drawing.Font("Courier New",7f,FontStyle.Regular), 8, 12 );
-		static readonly Font AlternateFont = ShinyConsole.Font.FromGdiFont( new System.Drawing.Font("Courier New",7f,FontStyle.Bold   ), 8, 12 );
+#if false
+		static readonly Font StandardFont  = ShinyConsole.Font.FromGdiFont( new System.Drawing.Font("Courier New",8f,FontStyle.Regular), 8, 12 );
+		static readonly Font AlternateFont = ShinyConsole.Font.FromGdiFont( new System.Drawing.Font("Courier New",8f,FontStyle.Bold   ), 8, 12 );
+#elif false
+		static readonly Font StandardFont  = ShinyConsole.Font.FromBitmap( Properties.Resources.Font1, 8, 12 );
+		static readonly Font AlternateFont = ShinyConsole.Font.FromBitmap( Properties.Resources.Font1, 8, 12 );
+#else
+		static readonly Font StandardFont  = ShinyConsole.Font.FromBitmap( Properties.Resources.Font2, 6, 8 );
+		static readonly Font AlternateFont = ShinyConsole.Font.FromBitmap( Properties.Resources.Font2, 6, 8 );
+#endif
 
 		Point CursorPosition      = new Point(0,0);
 		Point SavedCursorPosition = new Point(0,0);
@@ -42,8 +50,9 @@ namespace TtyPlayer {
 		public VT100Form(): base(80,50) {
 			Text = "TtyPlayer#";
 
-			GlyphSize = new Size(8,12);
-			ClientSize = new Size( 80*GlyphSize.Width, 50*GlyphSize.Height );
+			GlyphSize = new Size(6,8);
+			GlyphOverlap = new Size(1,1);
+			FitWindowToMetrics();
 
 			for ( int y=0 ; y<Height ; ++y )
 			for ( int x=0 ; x<Width  ; ++x )

@@ -25,7 +25,15 @@ namespace ShinyConsole {
 		protected CC[,] Buffer;
 		public new int Width  { get { return Buffer.GetLength(0); }}
 		public new int Height { get { return Buffer.GetLength(1); }}
-		public Size GlyphSize = new Size(12,12);
+		public Size GlyphSize    = new Size(12,12);
+		public Size GlyphOverlap = new Size( 0, 0);
+
+		public void FitWindowToMetrics() {
+			ClientSize = new Size
+				( Width *GlyphSize.Width  - (Width -1)*GlyphOverlap.Width
+				, Height*GlyphSize.Height - (Height-1)*GlyphOverlap.Height
+				);
+		}
 
 		Device   Device;
 
@@ -131,10 +139,10 @@ namespace ShinyConsole {
 				var fd = FontData[Buffer[x,y].Font];
 				var i = 4*fd.GlyphCount;
 
-				var pl = (x+0)*GlyphSize.Width;
-				var pr = (x+1)*GlyphSize.Width;
-				var pt = (y+0)*GlyphSize.Height;
-				var pb = (y+1)*GlyphSize.Height;
+				var pl = (x+0)*GlyphSize.Width -x*GlyphOverlap.Width;
+				var pr = (x+1)*GlyphSize.Width -x*GlyphOverlap.Width;
+				var pt = (y+0)*GlyphSize.Height-y*GlyphOverlap.Height;
+				var pb = (y+1)*GlyphSize.Height-y*GlyphOverlap.Height;
 
 				var tl = ((Buffer[x,y].Glyph%16)+0f) * GlyphSize.Width  / fd.TextureSize.Width;
 				var tr = ((Buffer[x,y].Glyph%16)+1f) * GlyphSize.Width  / fd.TextureSize.Width;
