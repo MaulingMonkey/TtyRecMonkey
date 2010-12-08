@@ -28,11 +28,17 @@ namespace ShinyConsole {
 		public Size GlyphSize    = new Size(12,12);
 		public Size GlyphOverlap = new Size( 0, 0);
 
-		public void FitWindowToMetrics() {
-			ClientSize = new Size
-				( Width *GlyphSize.Width  - (Width -1)*GlyphOverlap.Width
-				, Height*GlyphSize.Height - (Height-1)*GlyphOverlap.Height
+		public int Zoom = 1;
+
+		public Size ActiveSize { get {
+			return new Size
+				( (Width *GlyphSize.Width  - (Width -1)*GlyphOverlap.Width )*Zoom
+				, (Height*GlyphSize.Height - (Height-1)*GlyphOverlap.Height)*Zoom
 				);
+		}}
+
+		public void FitWindowToMetrics() {
+			ClientSize = ActiveSize;
 		}
 
 		Device   Device;
@@ -59,7 +65,7 @@ namespace ShinyConsole {
 
 			SetupDevice();
 			Buffer = new CC[w,h];
-			ClientSize = new Size( Width*GlyphSize.Width, Height*GlyphSize.Height );
+			ClientSize = ActiveSize;
 		}
 
 		protected override void OnResize( EventArgs e ) {
@@ -139,10 +145,10 @@ namespace ShinyConsole {
 				var fd = FontData[Buffer[x,y].Font];
 				var i = 4*fd.GlyphCount;
 
-				var pl = (x+0)*GlyphSize.Width -x*GlyphOverlap.Width;
-				var pr = (x+1)*GlyphSize.Width -x*GlyphOverlap.Width;
-				var pt = (y+0)*GlyphSize.Height-y*GlyphOverlap.Height;
-				var pb = (y+1)*GlyphSize.Height-y*GlyphOverlap.Height;
+				var pl = ((x+0)*GlyphSize.Width -x*GlyphOverlap.Width)*Zoom;
+				var pr = ((x+1)*GlyphSize.Width -x*GlyphOverlap.Width)*Zoom;
+				var pt = ((y+0)*GlyphSize.Height-y*GlyphOverlap.Height)*Zoom;
+				var pb = ((y+1)*GlyphSize.Height-y*GlyphOverlap.Height)*Zoom;
 
 				var tl = ((Buffer[x,y].Glyph%16)+0f) * GlyphSize.Width  / fd.TextureSize.Width;
 				var tr = ((Buffer[x,y].Glyph%16)+1f) * GlyphSize.Width  / fd.TextureSize.Width;
@@ -166,7 +172,7 @@ namespace ShinyConsole {
 
 			Device.BeginScene();
 
-			Device.Clear( ClearFlags.Target, unchecked((int)0xFFFF00FFu), 0f, 0 );
+			Device.Clear( ClearFlags.Target, unchecked((int)0xFF112233u), 0f, 0 );
 			Device.SetRenderState(RenderState.AlphaBlendEnable,true);
 			Device.SetRenderState(RenderState.Lighting, false);
 			Device.SetRenderState(RenderState.ZEnable, false);
@@ -183,6 +189,7 @@ namespace ShinyConsole {
 			Device.SetSamplerState( 0, SamplerState.MagFilter, TextureFilter.GaussianQuad );
 			Device.SetTransform( TransformState.Projection, Matrix.OrthoOffCenterLH( 0, ClientSize.Width, ClientSize.Height, 0, -1, +1 ) );
 			Device.SetTransform( TransformState.View      , Matrix.Translation(-0.5f,-0.5f,0f) );
+			Device.SetTransform( TransformState.World     , Matrix.Translation( (int)-( ActiveSize.Width-ClientSize.Width )/2, (int)-( ActiveSize.Height-ClientSize.Height )/2, 0 ) );
 			Device.VertexFormat = Vertex.FVF;
 
 			foreach ( var fd in FontData )

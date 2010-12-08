@@ -178,7 +178,6 @@ namespace TtyPlayer {
 			}
 		}
 
-		[DllImport(@"PuttyDLL.dll")]        static extern void     InitializePutty     ();
 		[DllImport(@"PuttyDLL.dll")]        static extern Terminal CreatePuttyTerminal ( int width, int height );
 		[DllImport(@"PuttyDLL.dll")]        static extern void     DestroyPuttyTerminal( Terminal terminal );
 		[DllImport(@"PuttyDLL.dll")] unsafe static extern void     SendPuttyTerminal   ( Terminal terminal, int stderr, byte* data, int length );
@@ -187,7 +186,6 @@ namespace TtyPlayer {
 				SendPuttyTerminal( terminal, stderr?1:0, pinned_data, data.Length );
 			}
 		}
-		[DllImport(@"PuttyDLL.dll")]        static extern void           PaintPuttyTerminal  ( Terminal terminal, IntPtr context, int w, int h );
 		[DllImport(@"PuttyDLL.dll")] unsafe static extern PuttyTermChar* GetPuttyTerminalLine( Terminal terminal, int y, int unused );
 
 		unsafe static PuttyTermChar[] GetPuttyTerminalLine( Terminal terminal, int y ) {
@@ -233,7 +231,6 @@ namespace TtyPlayer {
 				packets[i] = p;
 			}
 
-			InitializePutty();
 			var putty = CreatePuttyTerminal( 80, 50 );
 
 			var start = DateTime.Now;
@@ -266,6 +263,8 @@ namespace TtyPlayer {
 			};
 			form.KeyDown += (s,e) => {
 				if ( e.KeyCode == Keys.Right && packeti<packets.Count ) SendPuttyTerminal( putty, false, packets[packeti++].Payload );
+				if ( e.KeyCode == Keys.Z ) form.Zoom++;
+				if ( e.KeyCode == Keys.X && form.Zoom>1 ) form.Zoom--;
 			};
 #if false
 			form.MouseClick += (s,e) => {
