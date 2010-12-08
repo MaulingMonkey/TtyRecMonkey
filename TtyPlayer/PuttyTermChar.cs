@@ -7,6 +7,22 @@ namespace TtyPlayer {
 		public uint attr;
 		public int  cc_next;
 
+		public static bool operator==( PuttyTermChar lhs, PuttyTermChar rhs ) {
+			return lhs.chr     == rhs.chr
+				&& lhs.attr    == rhs.attr
+				&& lhs.cc_next == rhs.cc_next
+				;
+		}
+		public static bool operator!=( PuttyTermChar lhs, PuttyTermChar rhs ) {
+			return !(lhs==rhs);
+		}
+		public override int GetHashCode() {
+			return base.GetHashCode();
+		}
+		public override bool Equals( object obj ) {
+			return (obj is PuttyTermChar && this == (PuttyTermChar)obj);
+		}
+
 		public char Character { get { return (char)chr; }}
 
 		public bool Blink                  { get { return (0x200000u & attr) != 0; }}

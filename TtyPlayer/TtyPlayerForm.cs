@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.Linq;
 using System.Windows.Forms;
 using ShinyConsole;
 using SlimDX.Windows;
@@ -105,6 +104,20 @@ namespace TtyPlayer {
 			return new TimeSpan( 0, 0, 0, after.Sec-before.Sec, (after.USec-before.USec)/1000 );
 		}
 
+		static string PrettyByteCount( float n ) {
+			if ( n<=10000 ) return String.Format("{0:n}B",n);
+			n/=1000;
+			if ( n<=10000 ) return String.Format("{0:n}KB",n);
+			n/=1000;
+			if ( n<=10000 ) return String.Format("{0:n}MB",n);
+			n/=1000;
+			if ( n<=10000 ) return String.Format("{0:n}GB",n);
+			n/=1000;
+			if ( n<=10000 ) return String.Format("{0:n}TB",n);
+			n/=1000;
+			return String.Format("{0:n}PB",n);
+		}
+
 		[STAThread] static void Main() {
 			var form = new VT100Form() { Visible = true };
 
@@ -121,6 +134,23 @@ namespace TtyPlayer {
 			var file = open.OpenFile();
 
 			using ( open ) {} open = null;
+
+			var decode_start = DateTime.Now;
+			var deltas = TtyRecDecoder.DecodeDeltaFrames(file).ToArray();
+			var decode_end   = DateTime.Now;
+
+			deltas.Count( d => d.BackwardsFromThisFrame!=null );
+			deltas.Sum( d => (d.Right-d.Left)*(d.Bottom-d.Top) );
+			MessageBox.Show
+				( form
+				, "Took "+(decode_end-decode_start)+" to decode to delta frames\n"
+				+ deltas.Count( d => d.ForwardToThisFrame    !=null ) + " forward frames   @ ~" + PrettyByteCount(deltas.Sum( d =>                                      8*d.ForwardToThisFrame    .GetLength(0)*d.ForwardToThisFrame    .GetLength(1) ) ) + "\n"
+				+ deltas.Count( d => d.BackwardsFromThisFrame!=null ) + " backwards frames @ ~" + PrettyByteCount(deltas.Sum( d => d.BackwardsFromThisFrame==null ? 0 : 8*d.BackwardsFromThisFrame.GetLength(0)*d.BackwardsFromThisFrame.GetLength(1) ) ) + "\n"
+				+ "Naive approach would take ~"+PrettyByteCount(80*25*8*deltas.Length)
+				, "Benchmark"
+				);
+
+			file.Position = 0;
 
 			var packets = new List<Packet>();
 
