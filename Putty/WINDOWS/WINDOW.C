@@ -79,9 +79,9 @@ static Mouse_Button translate_button(Mouse_Button button);
 static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 			unsigned char *output);
-       void cfgtopalette(void);
+static void cfgtopalette(void);
 static void systopalette(void);
-       void init_palette(void);
+static void init_palette(void);
 static void init_fonts(int, int);
 static void another_font(int);
 static void deinit_fonts(void);
@@ -1111,7 +1111,7 @@ static void enact_pending_netevent(void)
  * Copy the colour palette from the configuration data into defpal.
  * This is non-trivial because the colour indices are different.
  */
-void cfgtopalette(void)
+static void cfgtopalette(void)
 {
     int i;
     static const int ww[] = {
@@ -1176,7 +1176,7 @@ static void systopalette(void)
 /*
  * Set up the colour palette.
  */
-void init_palette(void)
+static void init_palette(void)
 {
     int i;
     HDC hdc = GetDC(hwnd);
@@ -1357,16 +1357,13 @@ debug(("general_textout: done, xn=%d\n", xn));
  *   ordinary one (manual underlining by means of line drawing can
  *   be done in a pinch).
  */
-void init_fonts_hdc( HDC hdc, int pick_width, int pick_height );
 static void init_fonts(int pick_width, int pick_height)
 {
-	init_fonts_hdc( GetDC(hwnd), pick_width, pick_height );
-}
-void init_fonts_hdc( HDC hdc, int pick_width, int pick_height ) {
     TEXTMETRIC tm;
     CPINFO cpinfo;
     int fontsize[3];
     int i;
+    HDC hdc;
     int fw_dontcare, fw_bold;
 
     for (i = 0; i < FONT_MAXNO; i++)
@@ -1382,6 +1379,8 @@ void init_fonts_hdc( HDC hdc, int pick_width, int pick_height ) {
 	fw_dontcare = FW_DONTCARE;
 	fw_bold = FW_BOLD;
     }
+
+    hdc = GetDC(hwnd);
 
     if (pick_height)
 	font_height = pick_height;
