@@ -105,96 +105,6 @@ namespace TtyPlayer {
 			return new TimeSpan( 0, 0, 0, after.Sec-before.Sec, (after.USec-before.USec)/1000 );
 		}
 
-#pragma warning disable 649 // Handle is used! Just not via C#.
-		struct Terminal { public IntPtr Handle; }
-#pragma warning restore 649
-
-		[DebuggerDisplay("{Character} {attr}")]
-		struct PuttyTermChar {
-			public uint chr;
-			public uint attr;
-			public int  cc_next;
-
-			public char Character { get { return (char)chr; }}
-
-			public bool Blink       { get { return (0x200000u & attr) != 0; }}
-			public bool Wide        { get { return (0x400000u & attr) != 0; }}
-			public bool Narrow      { get { return (0x800000u & attr) != 0; }}
-			public bool Bold        { get { return (0x040000u & attr) != 0; }}
-			public bool Underline   { get { return (0x080000u & attr) != 0; }}
-			public bool Reverse     { get { return (0x100000u & attr) != 0; }}
-			public uint ForegroundI { get { var fg=(0x0001FFu & attr) >> 0; if ( fg<16 && Bold ) fg|=8; if ( fg>255 && Bold ) fg|=1; return fg; }} // TODO: Reverse modes
-			public uint BackgroundI { get { var bg=(0x03FE00u & attr) >> 9; if ( bg<16 && Blink) bg|=8; if ( bg>255 && Blink) bg|=1; return bg; }}
-			public uint Colors      { get { return (0x03FFFFu & attr) >> 9; }}
-
-			public uint Foreground { get { return ColorTable[(int)ForegroundI]; }}
-			public uint Background { get { return ColorTable[(int)BackgroundI]; }}
-
-			static readonly List<uint> ColorTable;
-
-			static PuttyTermChar() {
-				ColorTable = new List<uint>()
-					{ 0xFF000000
-					, 0xFFCC0000
-					, 0xFF00CC00
-					, 0xFFCCCC00
-					, 0xFF0000CC
-					, 0xFFCC00CC
-					, 0xFF00CCCC
-					, 0xFFCCCCCC
-
-					, 0xFF808080
-					, 0xFFFF0000
-					, 0xFF00FF00
-					, 0xFFFFFF00
-					, 0xFF0000FF
-					, 0xFFFF00FF
-					, 0xFF00FFFF
-					, 0xFFFFFFFF
-					};
-
-				Debug.Assert( 6*6*6 == 216 );
-
-				for ( uint r=0 ; r<6 ; ++r )
-				for ( uint g=0 ; g<6 ; ++g )
-				for ( uint b=0 ; b<6 ; ++b )
-				{
-					ColorTable.Add( (0xFFu<<24) + ((42u*r)<<16) + ((42u*g)<<8) + ((42u*b)<<0) );
-				}
-
-				for ( uint grey=0 ; grey<24 ; ++grey ) {
-					var component = 0xFFu*(grey+1)/26;
-					ColorTable.Add( (0xFFu<<24) + 0x10101u * component );
-				}
-
-				Debug.Assert( ColorTable.Count==256 );
-
-				ColorTable.Add( 0xFFE0E0E0 ); // default foreground
-				ColorTable.Add( 0xFFFFFFFF ); // default bold foreground
-				ColorTable.Add( 0xFF000000 ); // default background
-				ColorTable.Add( 0xFF404040 ); // default bold background
-				ColorTable.Add( 0xFF00FF00 ); // cursor foreground
-				ColorTable.Add( 0xFF00FF00 ); // cursor background
-			}
-		}
-
-		[DllImport(@"PuttyDLL.dll")]        static extern Terminal CreatePuttyTerminal ( int width, int height );
-		[DllImport(@"PuttyDLL.dll")]        static extern void     DestroyPuttyTerminal( Terminal terminal );
-		[DllImport(@"PuttyDLL.dll")] unsafe static extern void     SendPuttyTerminal   ( Terminal terminal, int stderr, byte* data, int length );
-		unsafe static void SendPuttyTerminal( Terminal terminal, bool stderr, byte[] data ) {
-			fixed ( byte* pinned_data = data ) {
-				SendPuttyTerminal( terminal, stderr?1:0, pinned_data, data.Length );
-			}
-		}
-		[DllImport(@"PuttyDLL.dll")] unsafe static extern PuttyTermChar* GetPuttyTerminalLine( Terminal terminal, int y, int unused );
-
-		unsafe static PuttyTermChar[] GetPuttyTerminalLine( Terminal terminal, int y ) {
-			var buffer = new PuttyTermChar[80];
-			var src = GetPuttyTerminalLine( terminal, y, 0 );
-			for ( int x=0 ; x<80 ; ++x ) buffer[x]=src[x];
-			return buffer;
-		}
-
 		[STAThread] static void Main() {
 			var form = new VT100Form() { Visible = true };
 
@@ -231,7 +141,7 @@ namespace TtyPlayer {
 				packets[i] = p;
 			}
 
-			var putty = CreatePuttyTerminal( 80, 50 );
+			var putty = Putty.CreatePuttyTerminal( 80, 50 );
 
 			var start = DateTime.Now;
 			var packeti = 0;
@@ -245,16 +155,16 @@ namespace TtyPlayer {
 				while ( frames.Peek().AddSeconds(1)<now ) frames.Dequeue();
 
 				while ( packeti<packets.Count && start+packets[packeti].SinceStart < DateTime.Now ) {
-					SendPuttyTerminal( putty, false, packets[packeti].Payload );
+					Putty.SendPuttyTerminal( putty, false, packets[packeti].Payload );
 					++packeti;
 				}
 
 				for ( int y=0 ; y<50 ; ++y ) {
-					var line = GetPuttyTerminalLine( putty, y );
+					var line = Putty.GetPuttyTerminalLine( putty, y );
 					for ( int x=0 ; x<80 ; ++x ) {
 						form.Buffer[x,y].Glyph = (char)(byte)(line[x].chr);
-						form.Buffer[x,y].Foreground = line[x].Foreground;
-						form.Buffer[x,y].Background = line[x].Background;
+						form.Buffer[x,y].Foreground = PuttyTermPalette.Default[ line[x].ForegroundPaletteIndex ];
+						form.Buffer[x,y].Background = PuttyTermPalette.Default[ line[x].BackgroundPaletteIndex ];
 					}
 				}
 
@@ -262,7 +172,7 @@ namespace TtyPlayer {
 				form.Redraw();
 			};
 			form.KeyDown += (s,e) => {
-				if ( e.KeyCode == Keys.Right && packeti<packets.Count ) SendPuttyTerminal( putty, false, packets[packeti++].Payload );
+				if ( e.KeyCode == Keys.Right && packeti<packets.Count ) Putty.SendPuttyTerminal( putty, false, packets[packeti++].Payload );
 				if ( e.KeyCode == Keys.Z ) form.Zoom++;
 				if ( e.KeyCode == Keys.X && form.Zoom>1 ) form.Zoom--;
 			};
@@ -279,7 +189,7 @@ namespace TtyPlayer {
 
 			MessagePump.Run( form, mainloop );
 
-			DestroyPuttyTerminal( putty );
+			Putty.DestroyPuttyTerminal( putty );
 		}
 	}
 }
