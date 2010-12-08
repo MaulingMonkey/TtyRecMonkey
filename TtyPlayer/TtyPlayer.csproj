@@ -40,6 +40,7 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Properties\Resources.resx">
@@ -58,6 +59,7 @@
     <Compile Include="PuttyTermPalette.cs" />
     <Compile Include="TtyPlayerForm.cs">
     </Compile>
+    <Compile Include="TtyRecDecoder.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ShinyConsole\ShinyConsole.csproj">

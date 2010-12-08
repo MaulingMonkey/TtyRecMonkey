@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
-using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using ShinyConsole;
 using SlimDX.Windows;
@@ -105,6 +102,24 @@ namespace TtyPlayer {
 			return new TimeSpan( 0, 0, 0, after.Sec-before.Sec, (after.USec-before.USec)/1000 );
 		}
 
+		static string PrettyTimeSpan( TimeSpan ts ) {
+			return string.Format( "{0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds );
+		}
+
+		static string PrettyByteCount( long bytes ) {
+			if ( bytes<10000 ) return string.Format( "{0:0,0}B", bytes );
+			bytes /= 1000;
+			if ( bytes<10000 ) return string.Format( "{0:0,0}KB", bytes );
+			bytes /= 1000;
+			if ( bytes<10000 ) return string.Format( "{0:0,0}MB", bytes );
+			bytes /= 1000;
+			if ( bytes<10000 ) return string.Format( "{0:0,0}GB", bytes );
+			bytes /= 1000;
+			if ( bytes<10000 ) return string.Format( "{0:0,0}TB", bytes );
+			bytes /= 1000;
+			return string.Format( "{0:0,0}PB", bytes );
+		}
+
 		[STAThread] static void Main() {
 			var form = new VT100Form() { Visible = true };
 
@@ -122,59 +137,67 @@ namespace TtyPlayer {
 
 			using ( open ) {} open = null;
 
-			var packets = new List<Packet>();
+			var decoder = new TtyRecDecoder();
+#if true
+			decoder.StartDecoding(file);
+#elif true
+			decoder.StartDecoding( file, a=> { try { form.BeginInvoke(a); } catch ( InvalidOperationException ) {} } );
+#else
+			decoder.DecodeAll(file);
+#endif
 
-			using ( var reader = new BinaryReader(file) )
-			while ( file.Position < file.Length )
-			{
-				var p = new Packet();
-				p.Sec     = reader.ReadInt32();
-				p.USec    = reader.ReadInt32();
-				var len   = reader.ReadInt32();
-				p.Payload = reader.ReadBytes(len);
-				packets.Add(p);
-			}
+			var speed = +1;
+			var seek = TimeSpan.Zero;
+			var frames = new List<DateTime>();
 
-			for ( int i=0 ; i<packets.Count ; ++i ) {
-				var p = packets[i];
-				p.SinceStart = Delta( packets[0], packets[i] );
-				packets[i] = p;
-			}
-
-			var putty = Putty.CreatePuttyTerminal( 80, 50 );
-
-			var start = DateTime.Now;
-			var packeti = 0;
-
-			var frames = new Queue<DateTime>();
-
+			var previous_frame = DateTime.Now;
 			MainLoop mainloop = () => {
 				var now = DateTime.Now;
 
-				frames.Enqueue(now);
-				while ( frames.Peek().AddSeconds(1)<now ) frames.Dequeue();
+				frames.Add(now);
+				frames.RemoveAll(f=>f.AddSeconds(1)<now);
 
-				while ( packeti<packets.Count && start+packets[packeti].SinceStart < DateTime.Now ) {
-					Putty.SendPuttyTerminal( putty, false, packets[packeti].Payload );
-					++packeti;
+				var dt = Math.Max( 0, Math.Min( 0.1, (now-previous_frame).TotalSeconds ) );
+				previous_frame = now;
+
+				seek += TimeSpan.FromSeconds(dt*speed);
+
+				decoder.Seek( seek );
+
+				var frame = decoder.CurrentFrame.Data;
+				if ( frame != null )
+				for ( int y=0 ; y<50 ; ++y )
+				for ( int x=0 ; x<80 ; ++x )
+				{
+					var ch = (x<frame.GetLength(0) && y<frame.GetLength(1)) ? frame[x,y] : default(PuttyTermChar);
+
+					form.Buffer[x,y].Glyph = (char)(byte)(ch.chr);
+					form.Buffer[x,y].Foreground = PuttyTermPalette.Default[ ch.ForegroundPaletteIndex ];
+					form.Buffer[x,y].Background = PuttyTermPalette.Default[ ch.BackgroundPaletteIndex ];
 				}
 
-				for ( int y=0 ; y<50 ; ++y ) {
-					var line = Putty.GetPuttyTerminalLine( putty, y );
-					for ( int x=0 ; x<80 ; ++x ) {
-						form.Buffer[x,y].Glyph = (char)(byte)(line[x].chr);
-						form.Buffer[x,y].Foreground = PuttyTermPalette.Default[ line[x].ForegroundPaletteIndex ];
-						form.Buffer[x,y].Background = PuttyTermPalette.Default[ line[x].BackgroundPaletteIndex ];
-					}
-				}
-
-				form.Text = string.Format("TtyPlayer# -- {2} FPS -- Packet {0} of {1}",packeti,packets.Count,frames.Count);
+				//form.Text = string.Format("TtyPlayer# -- {2} FPS -- Packet {0} of {1}","???","???",frames.Count);
+				form.Text = string.Format
+					( "TtyPlayer# -- {0} FPS -- {1} @ {2} of {3} -- (using {4} pagefile) -- Speed {5}"
+					, frames.Count
+					, PrettyTimeSpan( seek )
+					, PrettyTimeSpan( decoder.CurrentFrame.SinceStart )
+					, PrettyTimeSpan( decoder.Length )
+					, PrettyByteCount( decoder.SizeInBytes )
+					, speed
+					);
 				form.Redraw();
 			};
 			form.KeyDown += (s,e) => {
-				if ( e.KeyCode == Keys.Right && packeti<packets.Count ) Putty.SendPuttyTerminal( putty, false, packets[packeti++].Payload );
-				if ( e.KeyCode == Keys.Z ) form.Zoom++;
-				if ( e.KeyCode == Keys.X && form.Zoom>1 ) form.Zoom--;
+				switch ( e.KeyCode ) {
+				case Keys.Z: speed=-10; break;
+				case Keys.X: speed= -1; break;
+				case Keys.C: speed=  0; break;
+				case Keys.V: speed= +1; break;
+				case Keys.B: speed=+10; break;
+				case Keys.A: ++form.Zoom; break;
+				case Keys.S: if ( form.Zoom>1 ) --form.Zoom; break;
+				}
 			};
 #if false
 			form.MouseClick += (s,e) => {
@@ -189,7 +212,7 @@ namespace TtyPlayer {
 
 			MessagePump.Run( form, mainloop );
 
-			Putty.DestroyPuttyTerminal( putty );
+			using ( decoder ) decoder = null;
 		}
 	}
 }
