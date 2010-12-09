@@ -11,15 +11,13 @@ namespace TtyPlayer {
 	class VT100Form : BasicShinyConsoleForm<VT100Form.VT100Character> {
 		public struct VT100Character : IConsoleCharacter {
 			public new uint Foreground, Background;
-			public bool Bold, LowIntensity, Underline, Blink, Reverse, Invisible, Italic;
-
 			public uint ActualForeground;// { get { return base.Foreground; } set { base.Foreground = value; }}
 			public uint ActualBackground;// { get { return base.Background; } set { base.Background = value; }}
 			public char Glyph;
 
 			uint IConsoleCharacter.Foreground { get { return ActualForeground; }}
 			uint IConsoleCharacter.Background { get { return ActualBackground; }}
-			Font IConsoleCharacter.Font       { get { return (Bold==LowIntensity) ? StandardFont : Bold ? AlternateFont : StandardFont; }}
+			Font IConsoleCharacter.Font       { get { return StandardFont; }}
 			char IConsoleCharacter.Glyph      { get { return Glyph; }}
 		}
 
@@ -41,7 +39,6 @@ namespace TtyPlayer {
 			{ Foreground = 0xFFFFFFFFu
 			, Background = 0xFF000000u
 			, Glyph      = ' '
-			, Blink      = false
 			};
 
 		public VT100Form(): base(80,50) {
@@ -138,13 +135,7 @@ namespace TtyPlayer {
 			using ( open ) {} open = null;
 
 			var decoder = new TtyRecDecoder();
-#if true
 			decoder.StartDecoding(file);
-#elif true
-			decoder.StartDecoding( file, a=> { try { form.BeginInvoke(a); } catch ( InvalidOperationException ) {} } );
-#else
-			decoder.DecodeAll(file);
-#endif
 
 			var speed = +1;
 			var seek = TimeSpan.Zero;
@@ -176,7 +167,6 @@ namespace TtyPlayer {
 					form.Buffer[x,y].Background = PuttyTermPalette.Default[ ch.BackgroundPaletteIndex ];
 				}
 
-				//form.Text = string.Format("TtyPlayer# -- {2} FPS -- Packet {0} of {1}","???","???",frames.Count);
 				form.Text = string.Format
 					( "TtyPlayer# -- {0} FPS -- {1} @ {2} of {3} -- (using {4} pagefile) -- Speed {5}"
 					, frames.Count
@@ -199,16 +189,6 @@ namespace TtyPlayer {
 				case Keys.S: if ( form.Zoom>1 ) --form.Zoom; break;
 				}
 			};
-#if false
-			form.MouseClick += (s,e) => {
-				var x = (e.X + form.GlyphOverlap.Width /2) / (form.GlyphSize.Width -form.GlyphOverlap.Width );
-				var y = (e.Y + form.GlyphOverlap.Height/2) / (form.GlyphSize.Height-form.GlyphOverlap.Height);
-				if ( x<0 || form.Width <=x ) return;
-				if ( y<0 || form.Height<=y ) return;
-				var line = GetPuttyTerminalLine( putty, y );
-				MessageBox.Show( form, String.Format("{0},{1} :=\n\tchr:'{2}'\n\tattr:{3}", x, y, (char)line[x].chr, line[x].attr ), "Character Data" );
-			};
-#endif
 
 			MessagePump.Run( form, mainloop );
 
