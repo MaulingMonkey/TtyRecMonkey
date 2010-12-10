@@ -27,8 +27,8 @@ Select a non-compressed ttyrec file and open it
 
 ==== Placeholder Controls ====
 
-Z X C V B   Alter playback speed (-10x, -1x, 0x, +1x, +10x)
-A S         Zoom In/Out
+ZXCVBNM    Alter playback speed (-100x, -10x, -1x, 0x, +1x, +10x, +100x)
+AS         Zoom In/Out
 
 
 

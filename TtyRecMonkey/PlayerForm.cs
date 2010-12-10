@@ -128,18 +128,11 @@ namespace TtyRecMonkey {
 
 			using ( open ) {} open = null;
 
-#if true
 			var decoder = new TtyRecKeyframeDecoder(file);
-#else
-			var decoder = new TtyRecDecoder();
-			decoder.StartDecoding(file);
-#endif
 
 			var speed = +1;
 			var seek = TimeSpan.Zero;
 			var frames = new List<DateTime>();
-
-			long framenum = 0;
 
 			var previous_frame = DateTime.Now;
 			MainLoop mainloop = () => {
@@ -167,27 +160,32 @@ namespace TtyRecMonkey {
 					form.Buffer[x,y].Background = Palette.Default[ ch.BackgroundPaletteIndex ];
 				}
 
-				if ( ++framenum%100 == 0 ) form.Text = string.Format
-					( "TtyPlayer# -- {0} FPS -- {1} @ {2} of {3} ({6} keyframes) -- (using {4} pagefile) -- Speed {5}"
+				form.Text = string.Format
+					( "TtyRecMonkey -- {0} FPS -- {1} @ {2} of {3} ({4} keyframes) -- Speed {5} -- GC recognized memory: {6}"
 					, frames.Count
 					, PrettyTimeSpan( seek )
 					, PrettyTimeSpan( decoder.CurrentFrame.SinceStart )
 					, PrettyTimeSpan( decoder.Length )
-					, PrettyByteCount( decoder.SizeInBytes )
-					, speed
 					, decoder.Keyframes
+					, speed
+					, PrettyByteCount( GC.GetTotalMemory(false) )
 					);
 				form.Redraw();
 			};
 			form.KeyDown += (s,e) => {
 				switch ( e.KeyCode ) {
-				case Keys.Z: speed=-10; break;
-				case Keys.X: speed= -1; break;
-				case Keys.C: speed=  0; break;
-				case Keys.V: speed= +1; break;
-				case Keys.B: speed=+10; break;
+
+				case Keys.Z: speed=-100; break;
+				case Keys.X: speed= -10; break;
+				case Keys.C: speed=  -1; break;
+				case Keys.V: speed=   0; break;
+				case Keys.B: speed=  +1; break;
+				case Keys.N: speed= +10; break;
+				case Keys.M: speed=+100; break;
+
 				case Keys.A: ++form.Zoom; break;
 				case Keys.S: if ( form.Zoom>1 ) --form.Zoom; break;
+
 				}
 			};
 

@@ -21,11 +21,12 @@ namespace TtyRecMonkey {
 	}
 
 	class TtyRecKeyframeDecoder : IDisposable {
-		struct AnnotatedPacket {
+		class AnnotatedPacket {
 			public TimeSpan             SinceStart;
 			public byte[]               Payload;
 			public Terminal             RestartPosition;
 			public TerminalCharacter[,] DecodedCache;
+			public WeakReference        DecodedCacheWeak;
 		}
 
 		static IEnumerable<TtyRecPacket> DecodePackets( Stream stream ) {
@@ -53,7 +54,7 @@ namespace TtyRecMonkey {
 			}
 		}
 
-		static IEnumerable<AnnotatedPacket> AnnotatePackets( IEnumerable<TtyRecPacket> packets ) {
+		IEnumerable<AnnotatedPacket> AnnotatePackets( IEnumerable<TtyRecPacket> packets ) {
 			using ( var term = new Terminal(80,50) ) {
 				var memory_budget3 = 100 * 1000 * 1000; // ~ 100 MB
 
@@ -77,6 +78,7 @@ namespace TtyRecMonkey {
 					if ( need_restart ) {
 						last_restart_position_time = now;
 						last_restart_memory_avail = memory_budget3/3;
+						++Keyframes;
 					} else {
 						last_restart_memory_avail -= 80*50*12;
 					}
@@ -109,30 +111,65 @@ namespace TtyRecMonkey {
 		}
 
 		void DumpChunksAround( TimeSpan seektarget ) {
-			var preceeding_restart = Packets.FindLastIndex( ap => ap.RestartPosition!=null && ap.SinceStart <= seektarget );
-			if ( preceeding_restart == -1 ) preceeding_restart = 0;
+			var before_seek = Packets.FindLastIndex( ap => ap.RestartPosition!=null && ap.SinceStart <= seektarget );
+			if ( before_seek == -1 ) before_seek = 0;
 
-			var postceeding_restart = Packets.FindIndex( preceeding_restart+1, ap => ap.RestartPosition!=null );
-			if ( postceeding_restart == -1 ) postceeding_restart = Packets.Count;
+			var after_seek = Packets.FindIndex( before_seek+1, ap => ap.RestartPosition!=null && ap.SinceStart > seektarget );
+			if ( after_seek == -1 ) after_seek = Packets.Count;
 
-			Decode( preceeding_restart, postceeding_restart );
+			// we now have goalposts 'before_seek' and 'after_seek' which fence our seek target
+			// expand our breadth one more restart pole:
+
+			before_seek = Packets.FindLastIndex( Math.Max(0,before_seek-1), ap=>ap.RestartPosition!=null );
+			if ( before_seek == -1 ) before_seek = 0;
+
+			if ( after_seek>=Packets.Count-1 ) {
+				after_seek = Packets.Count;
+			} else {
+				Debug.Assert( after_seek<Packets.Count-1 );
+				after_seek = Packets.FindIndex( after_seek+1, ap=>ap.RestartPosition!=null );
+				if ( after_seek == -1 ) after_seek = Packets.Count;
+			}
+
+			SetActiveRange( before_seek, after_seek );
 		}
 
-		void Decode( int start, int end ) {
+		void SetActiveRange( int start, int end ) {
 			Debug.Assert( start<end );
 			Debug.Assert( Packets[start].RestartPosition != null );
 
-			if ( Packets[start].DecodedCache != null ) return;
+			bool need_decode = false;
 
+			// First, we strong reference everything we can, making note if we're missing anything via need_decode:
+			for ( int i=start ; i<end ; ++i ) {
+				var p = Packets[i];
+				if ( p.DecodedCache!=null ) continue;
+				var weak = (p.DecodedCache==null) ? null : p.DecodedCacheWeak.Target;
+
+				if ( weak!=null ) {
+					p.DecodedCache = (TerminalCharacter[,])weak;
+				} else {
+					need_decode = true;
+				}
+			}
+
+			// Next, we stop strong referencing everything otuside this range:
+			for ( int i=0   ; i<start         ; ++i ) Packets[i].DecodedCache = null;
+			for ( int i=end ; i<Packets.Count ; ++i ) Packets[i].DecodedCache = null;
+
+			if (!need_decode) return;
+
+			// Finally, if necessary, calculate anything we're missing in the range:
 			using ( var term = new Terminal( Packets[start].RestartPosition ) )
 			for ( int i=start ; i<end ; ++i )
 			{
-				var ap = Packets[i];
-				if ( ap.DecodedCache==null ) {
-					ap.DecodedCache = DumpTerminal( term, Packets[i].SinceStart ).Data;
-					Packets[i] = ap;
+				var p = Packets[i];
+				if ( p.DecodedCache==null ) {
+					p.DecodedCache = DumpTerminal( term, Packets[i].SinceStart ).Data;
+					// p.DecodedCacheWeak = new WeakReference( p.DecodedCache ); // TODO:  Hook up to a configuration flag?  Actually not that useful from the looks of it.
+					Packets[i] = p;
 				}
-				term.Send( ap.Payload );
+				term.Send( p.Payload );
 			}
 		}
 
@@ -158,10 +195,6 @@ namespace TtyRecMonkey {
 			CurrentFrame = DumpTerminal( Packets[0].RestartPosition, Packets[0].SinceStart );
 		}
 
-		public long SizeInBytes { get {
-			return 80*50*12L * (Packets.Count( p => p.RestartPosition != null ) + Packets.Count( p => p.DecodedCache != null ));
-		}}
-
-		public int Keyframes { get { return Packets.Count(ap=>ap.RestartPosition!=null); }}
+		public int  Keyframes { get; private set; }
 	}
 }
