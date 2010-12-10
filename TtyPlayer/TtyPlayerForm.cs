@@ -104,15 +104,15 @@ namespace TtyPlayer {
 		}
 
 		static string PrettyByteCount( long bytes ) {
-			if ( bytes<10000 ) return string.Format( "{0:0,0}B", bytes );
+			if ( bytes<10000L ) return string.Format( "{0:0,0}B", bytes );
 			bytes /= 1000;
-			if ( bytes<10000 ) return string.Format( "{0:0,0}KB", bytes );
+			if ( bytes<10000L ) return string.Format( "{0:0,0}KB", bytes );
 			bytes /= 1000;
-			if ( bytes<10000 ) return string.Format( "{0:0,0}MB", bytes );
+			if ( bytes<10000L ) return string.Format( "{0:0,0}MB", bytes );
 			bytes /= 1000;
-			if ( bytes<10000 ) return string.Format( "{0:0,0}GB", bytes );
+			if ( bytes<10000L ) return string.Format( "{0:0,0}GB", bytes );
 			bytes /= 1000;
-			if ( bytes<10000 ) return string.Format( "{0:0,0}TB", bytes );
+			if ( bytes<10000L ) return string.Format( "{0:0,0}TB", bytes );
 			bytes /= 1000;
 			return string.Format( "{0:0,0}PB", bytes );
 		}
@@ -134,8 +134,12 @@ namespace TtyPlayer {
 
 			using ( open ) {} open = null;
 
+#if true
+			var decoder = new TtyRecKeyframeDecoder(file);
+#else
 			var decoder = new TtyRecDecoder();
 			decoder.StartDecoding(file);
+#endif
 
 			var speed = +1;
 			var seek = TimeSpan.Zero;
@@ -168,13 +172,14 @@ namespace TtyPlayer {
 				}
 
 				form.Text = string.Format
-					( "TtyPlayer# -- {0} FPS -- {1} @ {2} of {3} -- (using {4} pagefile) -- Speed {5}"
+					( "TtyPlayer# -- {0} FPS -- {1} @ {2} of {3} ({6} keyframes) -- (using {4} pagefile) -- Speed {5}"
 					, frames.Count
 					, PrettyTimeSpan( seek )
 					, PrettyTimeSpan( decoder.CurrentFrame.SinceStart )
 					, PrettyTimeSpan( decoder.Length )
 					, PrettyByteCount( decoder.SizeInBytes )
 					, speed
+					, decoder.Keyframes
 					);
 				form.Redraw();
 			};

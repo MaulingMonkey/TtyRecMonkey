@@ -60,6 +60,7 @@
     <Compile Include="TtyPlayerForm.cs">
     </Compile>
     <Compile Include="TtyRecDecoder.cs" />
+    <Compile Include="TtyRecKeyframeDecoder.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ShinyConsole\ShinyConsole.csproj">
