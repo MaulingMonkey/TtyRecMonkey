@@ -1,12 +1,16 @@
-﻿using System.Collections.Generic;
+﻿// Copyright (c) 2010 Michael B. Edwin Rickert
+//
+// See the file LICENSE.txt for copying permission.
+
+using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace TtyPlayer {
-	class PuttyTermPalette : List<uint> {
-		public static readonly PuttyTermPalette Default;
+namespace TtyRecMonkey {
+	class Palette : List<uint> {
+		public static readonly Palette Default;
 
-		static PuttyTermPalette() {
-			Default = new PuttyTermPalette()
+		static Palette() {
+			Default = new Palette()
 				{ 0xFF000000
 				, 0xFFCC0000
 				, 0xFF00CC00

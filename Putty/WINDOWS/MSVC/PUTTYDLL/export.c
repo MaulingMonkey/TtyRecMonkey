@@ -1,3 +1,8 @@
+/* Copyright (c) 2010 Michael B. Edwin Rickert
+ *
+ * See the file LICENSE.txt for copying permission.
+ */
+
 #include "putty.h"
 #include "puttymem.h"
 #include "terminal.h"
@@ -65,7 +70,7 @@ EXPORT(Terminal*) ClonePuttyTerminal( Terminal* term ) {
 	return clone;
 }
 
-EXPORT(termchar*) GetPuttyTerminalLine( Terminal* terminal, int y, int unused ) {
+EXPORT(termchar*) GetPuttyTerminalLine( Terminal* terminal, int y ) {
 	termline* line = index234(terminal->screen,y);
 	return line->chars;
 }

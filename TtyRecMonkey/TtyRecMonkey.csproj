@@ -8,8 +8,8 @@
     <ProjectGuid>{2409C96E-18FC-4420-A755-A2509F3B33C2}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>TtyPlayer</RootNamespace>
-    <AssemblyName>TtyPlayer</AssemblyName>
+    <RootNamespace>TtyRecMonkey</RootNamespace>
+    <AssemblyName>TtyRecMonkey</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -17,7 +17,7 @@
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>..\bin\x86\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <DebugType>full</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
@@ -29,7 +29,7 @@
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="SlimDX, Version=2.0.10.43, Culture=neutral, PublicKeyToken=b1b0c32fd1ffe4f9" />
@@ -37,10 +37,8 @@
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
-    <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Properties\Resources.resx">
@@ -53,16 +51,16 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
-    <Compile Include="Putty.cs" />
-    <Compile Include="PuttyTermChar.cs" />
-    <Compile Include="PuttyTerminal.cs" />
-    <Compile Include="PuttyTermPalette.cs" />
-    <Compile Include="TtyPlayerForm.cs">
+    <Compile Include="Palette.cs" />
+    <Compile Include="PlayerForm.cs">
     </Compile>
-    <Compile Include="TtyRecDecoder.cs" />
     <Compile Include="TtyRecKeyframeDecoder.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\PuttySharp\PuttySharp.csproj">
+      <Project>{6ECD1D84-437E-40A0-832D-C5D06762A6F0}</Project>
+      <Name>PuttySharp</Name>
+    </ProjectReference>
     <ProjectReference Include="..\ShinyConsole\ShinyConsole.csproj">
       <Project>{B246C8EE-F963-403A-893E-530B08BA7261}</Project>
       <Name>ShinyConsole</Name>

@@ -1,4 +1,8 @@
-﻿using System;
+﻿// Copyright (c) 2010 Michael B. Edwin Rickert
+//
+// See the file LICENSE.txt for copying permission.
+
+using System;
 using System.Collections.Generic;
 using SlimDX.Windows;
 

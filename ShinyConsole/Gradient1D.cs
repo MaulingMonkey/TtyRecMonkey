@@ -1,8 +1,12 @@
-﻿using System;
+﻿// Copyright (c) 2010 Michael B. Edwin Rickert
+//
+// See the file LICENSE.txt for copying permission.
+
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
-using System.Diagnostics;
 
 namespace ShinyConsole {
 	class Gradient1D : List<Gradient1D.Entry> {

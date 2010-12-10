@@ -1,11 +1,15 @@
-﻿using System.Diagnostics;
+﻿// Copyright (c) 2010 Michael B. Edwin Rickert
+//
+// See the file LICENSE.txt for copying permission.
 
-namespace TtyPlayer {
+using System.Diagnostics;
+
+namespace Putty {
 	[DebuggerDisplay("{Character} {attr}")]
-	struct PuttyTermChar {
-		public uint chr;
-		public uint attr;
-		public int  cc_next;
+	public struct TerminalCharacter {
+		uint chr;
+		uint attr;
+		int  cc_next;
 
 		public char Character { get { return (char)chr; }}
 

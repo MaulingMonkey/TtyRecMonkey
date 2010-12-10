@@ -1,15 +1,20 @@
-﻿using System;
+﻿// Copyright (c) 2010 Michael B. Edwin Rickert
+//
+// See the file LICENSE.txt for copying permission.
+
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using Putty;
 using ShinyConsole;
 using SlimDX.Windows;
-using Font = ShinyConsole.Font;
+using Font = ShinyConsole.Font; // Disambiguate from System.Drawing.Font
 
-namespace TtyPlayer {
+namespace TtyRecMonkey {
 	[System.ComponentModel.DesignerCategory("")]
-	class VT100Form : BasicShinyConsoleForm<VT100Form.VT100Character> {
-		public struct VT100Character : IConsoleCharacter {
+	class PlayerForm : BasicShinyConsoleForm<PlayerForm.Character> {
+		public struct Character : IConsoleCharacter {
 			public new uint Foreground, Background;
 			public uint ActualForeground;// { get { return base.Foreground; } set { base.Foreground = value; }}
 			public uint ActualBackground;// { get { return base.Background; } set { base.Background = value; }}
@@ -35,14 +40,14 @@ namespace TtyPlayer {
 		Point CursorPosition      = new Point(0,0);
 		Point SavedCursorPosition = new Point(0,0);
 
-		VT100Character Prototype = new VT100Character()
+		Character Prototype = new Character()
 			{ Foreground = 0xFFFFFFFFu
 			, Background = 0xFF000000u
 			, Glyph      = ' '
 			};
 
-		public VT100Form(): base(80,50) {
-			Text = "TtyPlayer#";
+		public PlayerForm(): base(80,50) {
+			Text = "TtyRecMonkey";
 
 			GlyphSize = new Size(6,8);
 			GlyphOverlap = new Size(1,1);
@@ -73,8 +78,8 @@ namespace TtyPlayer {
 			base.Redraw();
 		}
 
-		void Resize( int w, int h ) {
-			var newbuffer = new VT100Character[w,h];
+		new void Resize( int w, int h ) {
+			var newbuffer = new Character[w,h];
 
 			var ow = Width;
 			var oh = Height;
@@ -86,17 +91,6 @@ namespace TtyPlayer {
 			}
 
 			Buffer = newbuffer;
-		}
-
-		struct Packet {
-			public int      Sec,USec;
-			public byte[]   Payload;
-
-			public TimeSpan SinceStart;
-		}
-
-		static TimeSpan Delta( Packet before, Packet after ) {
-			return new TimeSpan( 0, 0, 0, after.Sec-before.Sec, (after.USec-before.USec)/1000 );
 		}
 
 		static string PrettyTimeSpan( TimeSpan ts ) {
@@ -118,7 +112,7 @@ namespace TtyPlayer {
 		}
 
 		[STAThread] static void Main() {
-			var form = new VT100Form() { Visible = true };
+			var form = new PlayerForm() { Visible = true };
 
 			var open = new OpenFileDialog()
 				{ CheckFileExists = true
@@ -166,11 +160,11 @@ namespace TtyPlayer {
 				for ( int y=0 ; y<50 ; ++y )
 				for ( int x=0 ; x<80 ; ++x )
 				{
-					var ch = (x<frame.GetLength(0) && y<frame.GetLength(1)) ? frame[x,y] : default(PuttyTermChar);
+					var ch = (x<frame.GetLength(0) && y<frame.GetLength(1)) ? frame[x,y] : default(TerminalCharacter);
 
-					form.Buffer[x,y].Glyph = (char)(byte)(ch.chr);
-					form.Buffer[x,y].Foreground = PuttyTermPalette.Default[ ch.ForegroundPaletteIndex ];
-					form.Buffer[x,y].Background = PuttyTermPalette.Default[ ch.BackgroundPaletteIndex ];
+					form.Buffer[x,y].Glyph      = ch.Character;
+					form.Buffer[x,y].Foreground = Palette.Default[ ch.ForegroundPaletteIndex ];
+					form.Buffer[x,y].Background = Palette.Default[ ch.BackgroundPaletteIndex ];
 				}
 
 				if ( ++framenum%100 == 0 ) form.Text = string.Format

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShinyConsole", "ShinyConsole\ShinyConsole.csproj", "{B246C8EE-F963-403A-893E-530B08BA7261}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TtyPlayer", "TtyPlayer\TtyPlayer.csproj", "{2409C96E-18FC-4420-A755-A2509F3B33C2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TtyRecMonkey", "TtyRecMonkey\TtyRecMonkey.csproj", "{2409C96E-18FC-4420-A755-A2509F3B33C2}"
 	ProjectSection(ProjectDependencies) = postProject
 		{894037AC-374B-47FD-9FAB-5EA6B482D0C7} = {894037AC-374B-47FD-9FAB-5EA6B482D0C7}
 	EndProjectSection
@@ -12,8 +12,13 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PuttyDLL", "Putty\WINDOWS\M
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D7B1D523-2D87-4719-9F18-B7F6B11D44F8}"
 	ProjectSection(SolutionItems) = preProject
+		LICENSE.txt = LICENSE.txt
+		OVERVIEW.txt = OVERVIEW.txt
+		README.txt = README.txt
 		TODO.txt = TODO.txt
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PuttySharp", "PuttySharp\PuttySharp.csproj", "{6ECD1D84-437E-40A0-832D-C5D06762A6F0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +38,10 @@ Global
 		{894037AC-374B-47FD-9FAB-5EA6B482D0C7}.Debug|x86.Build.0 = Debug|Win32
 		{894037AC-374B-47FD-9FAB-5EA6B482D0C7}.Release|x86.ActiveCfg = Release|Win32
 		{894037AC-374B-47FD-9FAB-5EA6B482D0C7}.Release|x86.Build.0 = Release|Win32
+		{6ECD1D84-437E-40A0-832D-C5D06762A6F0}.Debug|x86.ActiveCfg = Debug|x86
+		{6ECD1D84-437E-40A0-832D-C5D06762A6F0}.Debug|x86.Build.0 = Debug|x86
+		{6ECD1D84-437E-40A0-832D-C5D06762A6F0}.Release|x86.ActiveCfg = Release|x86
+		{6ECD1D84-437E-40A0-832D-C5D06762A6F0}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
