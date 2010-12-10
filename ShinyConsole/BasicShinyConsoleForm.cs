@@ -36,8 +36,8 @@ namespace ShinyConsole {
 
 		public Size ActiveSize { get {
 			return new Size
-				( (Width *GlyphSize.Width  - (Width -1)*GlyphOverlap.Width )*Zoom
-				, (Height*GlyphSize.Height - (Height-1)*GlyphOverlap.Height)*Zoom
+				( Width *(GlyphSize.Width  - GlyphOverlap.Width )*Zoom
+				, Height*(GlyphSize.Height - GlyphOverlap.Height)*Zoom
 				);
 		}}
 
@@ -149,15 +149,23 @@ namespace ShinyConsole {
 				var fd = FontData[Buffer[x,y].Font];
 				var i = 4*fd.GlyphCount;
 
-				var pl = ((x+0)*GlyphSize.Width -x*GlyphOverlap.Width)*Zoom;
-				var pr = ((x+1)*GlyphSize.Width -x*GlyphOverlap.Width)*Zoom;
-				var pt = ((y+0)*GlyphSize.Height-y*GlyphOverlap.Height)*Zoom;
-				var pb = ((y+1)*GlyphSize.Height-y*GlyphOverlap.Height)*Zoom;
+				var overlap_l = (GlyphOverlap.Width +0)/2;
+				var overlap_r = (GlyphOverlap.Width +1)/2;
+				var overlap_t = (GlyphOverlap.Height+0)/2;
+				var overlap_b = (GlyphOverlap.Height+1)/2;
 
-				var tl = ((Buffer[x,y].Glyph%16)+0f) * GlyphSize.Width  / fd.TextureSize.Width;
-				var tr = ((Buffer[x,y].Glyph%16)+1f) * GlyphSize.Width  / fd.TextureSize.Width;
-				var tt = ((Buffer[x,y].Glyph/16)+0f) * GlyphSize.Height / fd.TextureSize.Height;
-				var tb = ((Buffer[x,y].Glyph/16)+1f) * GlyphSize.Height / fd.TextureSize.Height;
+				var stridex = GlyphSize.Width -GlyphOverlap.Width;
+				var stridey = GlyphSize.Height-GlyphOverlap.Height;
+
+				var pl = ((x+0)*stridex)*Zoom;
+				var pr = ((x+1)*stridex)*Zoom;
+				var pt = ((y+0)*stridey)*Zoom;
+				var pb = ((y+1)*stridey)*Zoom;
+
+				var tl = (((Buffer[x,y].Glyph%16)+0f) * GlyphSize.Width  +overlap_l)/ fd.TextureSize.Width;
+				var tr = (((Buffer[x,y].Glyph%16)+1f) * GlyphSize.Width  -overlap_r)/ fd.TextureSize.Width;
+				var tt = (((Buffer[x,y].Glyph/16)+0f) * GlyphSize.Height +overlap_t)/ fd.TextureSize.Height;
+				var tb = (((Buffer[x,y].Glyph/16)+1f) * GlyphSize.Height -overlap_b)/ fd.TextureSize.Height;
 
 				fd.IBWriter.WriteRange( new[] { i+0, i+1, i+2, i+0, i+2, i+3 } );
 				fd.VBWriter.WriteRange( new[]

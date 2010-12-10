@@ -19,23 +19,13 @@ namespace TtyRecMonkey {
 			public uint ActualForeground;// { get { return base.Foreground; } set { base.Foreground = value; }}
 			public uint ActualBackground;// { get { return base.Background; } set { base.Background = value; }}
 			public char Glyph;
+			public Font Font;
 
 			uint IConsoleCharacter.Foreground { get { return ActualForeground; }}
 			uint IConsoleCharacter.Background { get { return ActualBackground; }}
-			Font IConsoleCharacter.Font       { get { return StandardFont; }}
+			Font IConsoleCharacter.Font       { get { return Font; }}
 			char IConsoleCharacter.Glyph      { get { return Glyph; }}
 		}
-
-#if false
-		static readonly Font StandardFont  = ShinyConsole.Font.FromGdiFont( new System.Drawing.Font("Courier New",8f,FontStyle.Regular), 8, 12 );
-		static readonly Font AlternateFont = ShinyConsole.Font.FromGdiFont( new System.Drawing.Font("Courier New",8f,FontStyle.Bold   ), 8, 12 );
-#elif false
-		static readonly Font StandardFont  = ShinyConsole.Font.FromBitmap( Properties.Resources.Font1, 8, 12 );
-		static readonly Font AlternateFont = ShinyConsole.Font.FromBitmap( Properties.Resources.Font1, 8, 12 );
-#else
-		static readonly Font StandardFont  = ShinyConsole.Font.FromBitmap( Properties.Resources.Font2, 6, 8 );
-		static readonly Font AlternateFont = ShinyConsole.Font.FromBitmap( Properties.Resources.Font2, 6, 8 );
-#endif
 
 		Point CursorPosition      = new Point(0,0);
 		Point SavedCursorPosition = new Point(0,0);
@@ -73,6 +63,7 @@ namespace TtyRecMonkey {
 
 				Buffer[x,y].ActualForeground = flipfg ? Buffer[x,y].Background : Buffer[x,y].Foreground;
 				Buffer[x,y].ActualBackground = flipbg ? Buffer[x,y].Foreground : Buffer[x,y].Background;
+				Buffer[x,y].Font             = Prototype.Font;
 			}
 
 			base.Redraw();
@@ -113,6 +104,15 @@ namespace TtyRecMonkey {
 
 		[STAThread] static void Main() {
 			var form = new PlayerForm() { Visible = true };
+
+			Configuration.Load( form );
+
+			var cfg = new ConfigurationForm();
+			cfg.ShowDialog(form);
+			form.Prototype.Font = ShinyConsole.Font.FromBitmap( Configuration.Main.Font, Configuration.Main.Font.Width/16, Configuration.Main.Font.Height/16 );
+			form.GlyphSize      = new Size( Configuration.Main.Font.Width/16, Configuration.Main.Font.Height/16 );
+			form.GlyphOverlap   = new Size( Configuration.Main.FontOverlapX, Configuration.Main.FontOverlapY );
+			form.ClientSize     = form.ActiveSize;
 
 			var open = new OpenFileDialog()
 				{ CheckFileExists = true

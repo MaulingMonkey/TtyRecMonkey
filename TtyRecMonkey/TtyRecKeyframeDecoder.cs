@@ -65,7 +65,7 @@ namespace TtyRecMonkey {
 					var now = DateTime.Now;
 
 					bool need_restart
-						= (last_restart_position_time.AddSeconds(0.1) < now)
+						= (last_restart_position_time.AddSeconds(0.1/3) < now)
 						||(last_restart_memory_avail <= 1000)
 						;
 

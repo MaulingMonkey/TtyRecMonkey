@@ -34,11 +34,18 @@ namespace ShinyConsole {
 
 			using ( var fx = Graphics.FromImage(f.Bitmap) ) {
 				fx.Clear( Color.Black );
+
+				var evenw = (glyphw+1)&~1;
+				var evenh = (glyphw+1)&~1;
+
 				for ( int y=0 ; y<16 ; ++y )
 				for ( int x=0 ; x<16 ; ++x )
 				try
 				{
-					TextRenderer.DrawText( fx, ((char)(x+y*16)).ToString(), gdifont, new Rectangle( x*glyphw+1, y*glyphh-2, glyphw, glyphh ), Color.White, Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter );
+					var area = new Rectangle( x*glyphw, y*glyphh, evenw, evenh );
+					fx.SetClip(area);
+					fx.FillRectangle( Brushes.Black, area );
+					TextRenderer.DrawText( fx, ((char)(x+y*16)).ToString(), gdifont, area, Color.White, Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter );
 				}
 				catch ( Exception )
 				{
