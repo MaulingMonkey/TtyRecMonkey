@@ -192,7 +192,7 @@ namespace TtyPlayer {
 
 			MessagePump.Run( form, mainloop );
 
-			using ( decoder ) decoder = null;
+			using ( decoder ) {} decoder = null;
 		}
 	}
 }

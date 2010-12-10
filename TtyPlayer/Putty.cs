@@ -18,5 +18,7 @@ namespace TtyPlayer {
 			for ( int x=0 ; x<80 ; ++x ) buffer[x]=src[x];
 			return buffer;
 		}
+
+		[DllImport(@"PuttyDLL.dll")] public static extern PuttyTerminal ClonePuttyTerminal( PuttyTerminal terminal );
 	}
 }

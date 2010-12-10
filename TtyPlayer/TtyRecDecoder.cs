@@ -44,8 +44,16 @@ namespace TtyPlayer {
 		public static IEnumerable<TtyRecFrame> DecodeFrames( Stream stream ) {
 			var term = Putty.CreatePuttyTerminal(80,50);
 
+			int frame_number = 0;
+
 			foreach ( var packet in DecodePackets(stream) ) {
 				Putty.SendPuttyTerminal( term, false, packet.Payload );
+
+				if ( ++frame_number%10 == 0 ) {
+					var clone = Putty.ClonePuttyTerminal(term);
+					Putty.DestroyPuttyTerminal(term);
+					term = clone;
+				}
 
 				var frame = new TtyRecFrame()
 					{ SinceStart = packet.SinceStart
