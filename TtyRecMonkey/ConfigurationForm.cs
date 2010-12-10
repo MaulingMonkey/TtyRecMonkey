@@ -25,6 +25,7 @@ namespace TtyRecMonkey {
 		}
 
 		private void buttonCancel_Click( object sender, EventArgs e ) {
+			DialogResult = DialogResult.Cancel;
 			Close();
 		}
 
@@ -42,6 +43,7 @@ namespace TtyRecMonkey {
 			Configuration.Main.Font                  = (Bitmap)pictureBoxFontPreview.Image;
 
 			Configuration.Save( this );
+			DialogResult = DialogResult.OK;
 			Close();
 		}
 
