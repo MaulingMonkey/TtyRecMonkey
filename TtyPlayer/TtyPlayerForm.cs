@@ -145,6 +145,8 @@ namespace TtyPlayer {
 			var seek = TimeSpan.Zero;
 			var frames = new List<DateTime>();
 
+			long framenum = 0;
+
 			var previous_frame = DateTime.Now;
 			MainLoop mainloop = () => {
 				var now = DateTime.Now;
@@ -171,7 +173,7 @@ namespace TtyPlayer {
 					form.Buffer[x,y].Background = PuttyTermPalette.Default[ ch.BackgroundPaletteIndex ];
 				}
 
-				form.Text = string.Format
+				if ( ++framenum%100 == 0 ) form.Text = string.Format
 					( "TtyPlayer# -- {0} FPS -- {1} @ {2} of {3} ({6} keyframes) -- (using {4} pagefile) -- Speed {5}"
 					, frames.Count
 					, PrettyTimeSpan( seek )
