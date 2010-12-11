@@ -36,7 +36,7 @@ namespace ShinyConsole {
 				fx.Clear( Color.Black );
 
 				var evenw = (glyphw+1)&~1;
-				var evenh = (glyphw+1)&~1;
+				var evenh = (glyphh+1)&~1;
 
 				for ( int y=0 ; y<16 ; ++y )
 				for ( int x=0 ; x<16 ; ++x )
