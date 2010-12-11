@@ -16,6 +16,16 @@ namespace TtyRecMonkey {
 			checkBoxForceGC.Checked        = Configuration.Main.ChunksForceGC;
 			textBoxTargetChunksMemory.Text = Configuration.Main.ChunksTargetMemoryMB.ToString();
 			textBoxTargetLoadMS.Text       = Configuration.Main.ChunksTargetLoadMS.ToString();
+			textBoxConsoleDisplaySize.Text = string.Format
+				( "{0},{1}"
+				, Configuration.Main.DisplayConsoleSizeW
+				, Configuration.Main.DisplayConsoleSizeH
+				);
+			textBoxConsoleLogicalSize.Text = string.Format
+				( "{0},{1}"
+				, Configuration.Main.LogicalConsoleSizeW
+				, Configuration.Main.LogicalConsoleSizeH
+				);
 			textBoxFontOverlapXY.Text      = string.Format
 				( "{0},{1}"
 				, Configuration.Main.FontOverlapX
@@ -32,14 +42,22 @@ namespace TtyRecMonkey {
 		private void buttonSave_Click( object sender, EventArgs e ) {
 			var mb = int.Parse(textBoxTargetChunksMemory.Text);
 			var ms = int.Parse(textBoxTargetLoadMS.Text);
-			var xy = textBoxFontOverlapXY.Text.Split(',').Select(s=>int.Parse(s)).ToArray();
-			if ( xy.Length != 2 ) throw new Exception();
+			var fonto   = textBoxFontOverlapXY     .Text.Split(',').Select(s=>int.Parse(s)).ToArray();
+			var display = textBoxConsoleDisplaySize.Text.Split(',').Select(s=>int.Parse(s)).ToArray();
+			var logical = textBoxConsoleLogicalSize.Text.Split(',').Select(s=>int.Parse(s)).ToArray();
+			if ( fonto  .Length != 2 ) throw new Exception();
+			if ( display.Length != 2 ) throw new Exception();
+			if ( logical.Length != 2 ) throw new Exception();
 
 			Configuration.Main.ChunksForceGC         = checkBoxForceGC.Checked;
 			Configuration.Main.ChunksTargetMemoryMB  = mb;
 			Configuration.Main.ChunksTargetLoadMS    = ms;
-			Configuration.Main.FontOverlapX          = xy[0];
-			Configuration.Main.FontOverlapY          = xy[1];
+			Configuration.Main.DisplayConsoleSizeW   = display[0];
+			Configuration.Main.DisplayConsoleSizeH   = display[1];
+			Configuration.Main.LogicalConsoleSizeW   = logical[0];
+			Configuration.Main.LogicalConsoleSizeH   = logical[1];
+			Configuration.Main.FontOverlapX          = fonto[0];
+			Configuration.Main.FontOverlapY          = fonto[1];
 			Configuration.Main.Font                  = (Bitmap)pictureBoxFontPreview.Image;
 
 			Configuration.Save( this );
@@ -64,7 +82,7 @@ namespace TtyRecMonkey {
 			for ( char ch=(char)0 ; ch<(char)255 ; ++ch ) {
 				if ( "\u0001 \t\n\r".Contains(ch) ) continue; // annoying outliers
 				var m = TextRenderer.MeasureText( ch.ToString(), font, Size.Empty, TextFormatFlags.NoPadding );
-				touse.Width = Math.Max( touse.Width, m.Width );
+				touse.Width  = Math.Max( touse.Width , m.Width  );
 				touse.Height = Math.Max( touse.Height, m.Height );
 			}
 

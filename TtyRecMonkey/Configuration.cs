@@ -5,6 +5,7 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Windows.Forms;
 using TtyRecMonkey.Properties;
@@ -17,18 +18,36 @@ namespace TtyRecMonkey {
 		public int    FontOverlapX         =     1;
 		public int    FontOverlapY         =     1;
 		public Bitmap Font                 = Resources.Font2;
+
+		[OptionalField] public int DisplayConsoleSizeW;
+		[OptionalField] public int DisplayConsoleSizeH;
+		[OptionalField] public int LogicalConsoleSizeW;
+		[OptionalField] public int LogicalConsoleSizeH;
+
+		public ConfigurationData1() {
+			FillOptionals( default(StreamingContext) );
+		}
+
+		[OnDeserialized] void FillOptionals( StreamingContext sc ) {
+			if ( DisplayConsoleSizeW == 0 ) DisplayConsoleSizeW = 80;
+			if ( DisplayConsoleSizeH == 0 ) DisplayConsoleSizeH = 50;
+			if ( LogicalConsoleSizeW == 0 ) LogicalConsoleSizeW = 80;
+			if ( LogicalConsoleSizeH == 0 ) LogicalConsoleSizeH = 50;
+		}
 	}
 
 	static class Configuration {
 		static readonly string Folder     = Path.Combine( Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TtyRecMonkey" );
 		static readonly string DataFile   = Path.Combine( Folder, "data.cfg" );
 
+		private static ConfigurationData1 Defaults = new ConfigurationData1();
 		public static ConfigurationData1 Main { get; private set; }
 
 		private static ConfigurationData1 Load( Stream data ) {
 			var bf = new BinaryFormatter();
 			var o = bf.Deserialize(data);
-			return (ConfigurationData1)o;
+			var cd1 = (ConfigurationData1)o;
+			return cd1;
 		}
 
 		public static void Load( Form towhineat ) {

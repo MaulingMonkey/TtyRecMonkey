@@ -54,9 +54,10 @@ namespace TtyRecMonkey {
 			}
 		}
 
-		IEnumerable<AnnotatedPacket> AnnotatePackets( IEnumerable<TtyRecPacket> packets ) {
-			using ( var term = new Terminal(80,50) ) {
-				var memory_budget3 = 100 * 1000 * 1000; // ~ 100 MB
+		IEnumerable<AnnotatedPacket> AnnotatePackets( int w, int h, IEnumerable<TtyRecPacket> packets ) {
+			using ( var term = new Terminal(w,h) ) {
+				var memory_budget3 = Configuration.Main.ChunksTargetMemoryMB * 1000 * 1000;
+				var time_budget = TimeSpan.FromMilliseconds( Configuration.Main.ChunksTargetLoadMS );
 
 				var last_restart_position_time = DateTime.MinValue;
 				var last_restart_memory_avail  = memory_budget3/3;
@@ -65,7 +66,7 @@ namespace TtyRecMonkey {
 					var now = DateTime.Now;
 
 					bool need_restart
-						= (last_restart_position_time.AddSeconds(0.1/3) < now)
+						= (last_restart_position_time+time_budget < now)
 						||(last_restart_memory_avail <= 1000)
 						;
 
@@ -80,7 +81,7 @@ namespace TtyRecMonkey {
 						last_restart_memory_avail = memory_budget3/3;
 						++Keyframes;
 					} else {
-						last_restart_memory_avail -= 80*50*12;
+						last_restart_memory_avail -= w*h*12;
 					}
 
 					term.Send( packet.Payload );
@@ -94,8 +95,8 @@ namespace TtyRecMonkey {
 		}
 
 		TtyRecFrame DumpTerminal( Terminal term, TimeSpan since_start ) {
-			var h = 50;
-			var w = 80;
+			var h = Height;
+			var w = Width;
 
 			var frame = new TtyRecFrame()
 				{ Data = new TerminalCharacter[w,h]
@@ -189,8 +190,12 @@ namespace TtyRecMonkey {
 		readonly List<AnnotatedPacket> Packets;
 		public TtyRecFrame CurrentFrame;
 
-		public TtyRecKeyframeDecoder( Stream stream ) {
-			Packets = AnnotatePackets( DecodePackets(stream) ).ToList();
+		public int Width  { get; private set; }
+		public int Height { get; private set; }
+		public TtyRecKeyframeDecoder( int w, int h, Stream stream ) {
+			Width  = w;
+			Height = h;
+			Packets = AnnotatePackets( w, h, DecodePackets(stream) ).ToList();
 			if ( Packets.Count<=0 ) return;
 			CurrentFrame = DumpTerminal( Packets[0].RestartPosition, Packets[0].SinceStart );
 		}

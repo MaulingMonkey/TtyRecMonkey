@@ -5,11 +5,12 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO; // Disambiguate from System.Drawing.Font
 using System.Windows.Forms;
 using Putty;
 using ShinyConsole;
 using SlimDX.Windows;
-using Font = ShinyConsole.Font; // Disambiguate from System.Drawing.Font
+using Font = ShinyConsole.Font;
 
 namespace TtyRecMonkey {
 	[System.ComponentModel.DesignerCategory("")]
@@ -105,9 +106,23 @@ namespace TtyRecMonkey {
 			Prototype.Font = ShinyConsole.Font.FromBitmap( Configuration.Main.Font, Configuration.Main.Font.Width/16, Configuration.Main.Font.Height/16 );
 			GlyphSize      = new Size( Configuration.Main.Font.Width/16, Configuration.Main.Font.Height/16 );
 			GlyphOverlap   = new Size( Configuration.Main.FontOverlapX, Configuration.Main.FontOverlapY );
+			ResizeConsole( Configuration.Main.DisplayConsoleSizeW, Configuration.Main.DisplayConsoleSizeH );
+
+			if ( Decoder != null &&
+				(  Configuration.Main.LogicalConsoleSizeW != Decoder.CurrentFrame.Data.GetLength(0)
+				|| Configuration.Main.LogicalConsoleSizeH != Decoder.CurrentFrame.Data.GetLength(1)
+				)
+			){
+				using ( Decoder ) {}
+				Decoder = null;
+				DecoderData.Position = 0;
+				Decoder = new TtyRecKeyframeDecoder( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH, DecoderData);
+			}
+
 			if ( resize ) ClientSize=ActiveSize;
 		}
 
+		Stream                DecoderData = null;
 		TtyRecKeyframeDecoder Decoder = null;
 		int PlaybackSpeed;
 		TimeSpan Seek;
@@ -124,10 +139,13 @@ namespace TtyRecMonkey {
 				, Title = "Select a TtyRec to play"
 				};
 			if ( open.ShowDialog(this) != DialogResult.OK ) return;
-			var file = open.OpenFile();
+			using ( DecoderData ) {}
+			DecoderData = null;
+			DecoderData = open.OpenFile();
 			using ( open ) {} open = null;
 			using ( Decoder ) {}
-			Decoder = new TtyRecKeyframeDecoder(file);
+			Decoder = null;
+			Decoder = new TtyRecKeyframeDecoder( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH, DecoderData );
 			PlaybackSpeed = +1;
 			Seek = TimeSpan.Zero;
 		}
@@ -144,13 +162,16 @@ namespace TtyRecMonkey {
 
 			Seek += TimeSpan.FromSeconds(dt*PlaybackSpeed);
 
+			var BufferW = Buffer.GetLength(0);
+			var BufferH = Buffer.GetLength(1);
+
 			if ( Decoder != null ) {
 				Decoder.Seek( Seek );
 
 				var frame = Decoder.CurrentFrame.Data;
 				if ( frame != null )
-				for ( int y=0 ; y<50 ; ++y )
-				for ( int x=0 ; x<80 ; ++x )
+				for ( int y=0 ; y<BufferH ; ++y )
+				for ( int x=0 ; x<BufferW ; ++x )
 				{
 					var ch = (x<frame.GetLength(0) && y<frame.GetLength(1)) ? frame[x,y] : default(TerminalCharacter);
 
@@ -174,8 +195,8 @@ namespace TtyRecMonkey {
 					, " A / S     Zoom In/Out"
 					};
 
-				for ( int y=0 ; y<50 ; ++y )
-				for ( int x=0 ; x<80 ; ++x )
+				for ( int y=0 ; y<BufferH ; ++y )
+				for ( int x=0 ; x<BufferW ; ++x )
 				{
 					var ch = (y<text.Length && x<text[y].Length) ? text[y][x] : ' ';
 

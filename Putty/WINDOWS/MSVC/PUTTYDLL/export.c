@@ -83,3 +83,11 @@ EXPORT(void) DestroyPuttyTerminal( Terminal* terminal ) {
 EXPORT(void) SendPuttyTerminal( Terminal *terminal, int is_stderr, const char *data, int len ) {
 	term_data( terminal, is_stderr, data, len );
 }
+
+EXPORT(int) GetPuttyTerminalWidth( Terminal* terminal ) {
+	return terminal->cols;
+}
+
+EXPORT(int) GetPuttyTerminalHeight( Terminal* terminal ) {
+	return terminal->rows;
+}

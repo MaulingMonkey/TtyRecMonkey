@@ -37,6 +37,10 @@
 			this.buttonCancel = new System.Windows.Forms.Button();
 			this.buttonChangeFontBuiltin1 = new System.Windows.Forms.Button();
 			this.buttonChangeFontBuiltin2 = new System.Windows.Forms.Button();
+			this.labelConsoleDisplaySize = new System.Windows.Forms.Label();
+			this.textBoxConsoleDisplaySize = new System.Windows.Forms.TextBox();
+			this.labelConsoleLogicalSize = new System.Windows.Forms.Label();
+			this.textBoxConsoleLogicalSize = new System.Windows.Forms.TextBox();
 			((System.ComponentModel.ISupportInitialize)(this.pictureBoxFontPreview)).BeginInit();
 			this.SuspendLayout();
 			// 
@@ -53,73 +57,73 @@
 			// labelTargetChunksMemory
 			// 
 			this.labelTargetChunksMemory.AutoSize = true;
-			this.labelTargetChunksMemory.Location = new System.Drawing.Point(12, 42);
+			this.labelTargetChunksMemory.Location = new System.Drawing.Point(12, 94);
 			this.labelTargetChunksMemory.Name = "labelTargetChunksMemory";
 			this.labelTargetChunksMemory.Size = new System.Drawing.Size(145, 13);
-			this.labelTargetChunksMemory.TabIndex = 1;
+			this.labelTargetChunksMemory.TabIndex = 5;
 			this.labelTargetChunksMemory.Text = "Target Chunks Memory (MB):";
 			// 
 			// textBoxTargetChunksMemory
 			// 
-			this.textBoxTargetChunksMemory.Location = new System.Drawing.Point(212, 39);
+			this.textBoxTargetChunksMemory.Location = new System.Drawing.Point(212, 91);
 			this.textBoxTargetChunksMemory.Name = "textBoxTargetChunksMemory";
 			this.textBoxTargetChunksMemory.Size = new System.Drawing.Size(100, 20);
-			this.textBoxTargetChunksMemory.TabIndex = 2;
+			this.textBoxTargetChunksMemory.TabIndex = 6;
 			// 
 			// labelTargetLoadMS
 			// 
 			this.labelTargetLoadMS.AutoSize = true;
-			this.labelTargetLoadMS.Location = new System.Drawing.Point(12, 68);
+			this.labelTargetLoadMS.Location = new System.Drawing.Point(12, 120);
 			this.labelTargetLoadMS.Name = "labelTargetLoadMS";
-			this.labelTargetLoadMS.Size = new System.Drawing.Size(116, 13);
-			this.labelTargetLoadMS.TabIndex = 3;
-			this.labelTargetLoadMS.Text = "Target Load Time (ms):";
+			this.labelTargetLoadMS.Size = new System.Drawing.Size(159, 13);
+			this.labelTargetLoadMS.TabIndex = 7;
+			this.labelTargetLoadMS.Text = "Target Load Time (milliseconds):";
 			// 
 			// textBoxTargetLoadMS
 			// 
-			this.textBoxTargetLoadMS.Location = new System.Drawing.Point(212, 65);
+			this.textBoxTargetLoadMS.Location = new System.Drawing.Point(212, 117);
 			this.textBoxTargetLoadMS.Name = "textBoxTargetLoadMS";
 			this.textBoxTargetLoadMS.Size = new System.Drawing.Size(100, 20);
-			this.textBoxTargetLoadMS.TabIndex = 4;
+			this.textBoxTargetLoadMS.TabIndex = 8;
 			// 
 			// labelFontOverlapXY
 			// 
 			this.labelFontOverlapXY.AutoSize = true;
-			this.labelFontOverlapXY.Location = new System.Drawing.Point(12, 94);
+			this.labelFontOverlapXY.Location = new System.Drawing.Point(12, 146);
 			this.labelFontOverlapXY.Name = "labelFontOverlapXY";
 			this.labelFontOverlapXY.Size = new System.Drawing.Size(106, 13);
-			this.labelFontOverlapXY.TabIndex = 5;
+			this.labelFontOverlapXY.TabIndex = 9;
 			this.labelFontOverlapXY.Text = "Font Overlap (pixels):";
 			// 
 			// textBoxFontOverlapXY
 			// 
-			this.textBoxFontOverlapXY.Location = new System.Drawing.Point(212, 91);
+			this.textBoxFontOverlapXY.Location = new System.Drawing.Point(212, 143);
 			this.textBoxFontOverlapXY.Name = "textBoxFontOverlapXY";
 			this.textBoxFontOverlapXY.Size = new System.Drawing.Size(100, 20);
-			this.textBoxFontOverlapXY.TabIndex = 6;
+			this.textBoxFontOverlapXY.TabIndex = 10;
 			// 
 			// labelFont
 			// 
 			this.labelFont.AutoSize = true;
-			this.labelFont.Location = new System.Drawing.Point(12, 123);
+			this.labelFont.Location = new System.Drawing.Point(12, 175);
 			this.labelFont.Name = "labelFont";
 			this.labelFont.Size = new System.Drawing.Size(31, 13);
-			this.labelFont.TabIndex = 7;
+			this.labelFont.TabIndex = 11;
 			this.labelFont.Text = "Font:";
 			// 
 			// buttonChangeFont
 			// 
-			this.buttonChangeFont.Location = new System.Drawing.Point(212, 118);
+			this.buttonChangeFont.Location = new System.Drawing.Point(212, 170);
 			this.buttonChangeFont.Name = "buttonChangeFont";
 			this.buttonChangeFont.Size = new System.Drawing.Size(100, 23);
-			this.buttonChangeFont.TabIndex = 8;
+			this.buttonChangeFont.TabIndex = 14;
 			this.buttonChangeFont.Text = "Change Font";
 			this.buttonChangeFont.UseVisualStyleBackColor = true;
 			this.buttonChangeFont.Click += new System.EventHandler(this.buttonChangeFont_Click);
 			// 
 			// pictureBoxFontPreview
 			// 
-			this.pictureBoxFontPreview.Location = new System.Drawing.Point(12, 147);
+			this.pictureBoxFontPreview.Location = new System.Drawing.Point(12, 199);
 			this.pictureBoxFontPreview.Name = "pictureBoxFontPreview";
 			this.pictureBoxFontPreview.Size = new System.Drawing.Size(300, 300);
 			this.pictureBoxFontPreview.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
@@ -128,10 +132,10 @@
 			// 
 			// buttonSave
 			// 
-			this.buttonSave.Location = new System.Drawing.Point(15, 453);
+			this.buttonSave.Location = new System.Drawing.Point(15, 505);
 			this.buttonSave.Name = "buttonSave";
 			this.buttonSave.Size = new System.Drawing.Size(75, 23);
-			this.buttonSave.TabIndex = 10;
+			this.buttonSave.TabIndex = 15;
 			this.buttonSave.Text = "Save";
 			this.buttonSave.UseVisualStyleBackColor = true;
 			this.buttonSave.Click += new System.EventHandler(this.buttonSave_Click);
@@ -139,10 +143,10 @@
 			// buttonCancel
 			// 
 			this.buttonCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-			this.buttonCancel.Location = new System.Drawing.Point(237, 453);
+			this.buttonCancel.Location = new System.Drawing.Point(237, 505);
 			this.buttonCancel.Name = "buttonCancel";
 			this.buttonCancel.Size = new System.Drawing.Size(75, 23);
-			this.buttonCancel.TabIndex = 11;
+			this.buttonCancel.TabIndex = 16;
 			this.buttonCancel.Text = "Cancel";
 			this.buttonCancel.UseVisualStyleBackColor = true;
 			this.buttonCancel.Click += new System.EventHandler(this.buttonCancel_Click);
@@ -150,7 +154,7 @@
 			// buttonChangeFontBuiltin1
 			// 
 			this.buttonChangeFontBuiltin1.AutoSize = true;
-			this.buttonChangeFontBuiltin1.Location = new System.Drawing.Point(154, 118);
+			this.buttonChangeFontBuiltin1.Location = new System.Drawing.Point(154, 170);
 			this.buttonChangeFontBuiltin1.Name = "buttonChangeFontBuiltin1";
 			this.buttonChangeFontBuiltin1.Size = new System.Drawing.Size(23, 23);
 			this.buttonChangeFontBuiltin1.TabIndex = 12;
@@ -161,7 +165,7 @@
 			// buttonChangeFontBuiltin2
 			// 
 			this.buttonChangeFontBuiltin2.AutoSize = true;
-			this.buttonChangeFontBuiltin2.Location = new System.Drawing.Point(183, 118);
+			this.buttonChangeFontBuiltin2.Location = new System.Drawing.Point(183, 170);
 			this.buttonChangeFontBuiltin2.Name = "buttonChangeFontBuiltin2";
 			this.buttonChangeFontBuiltin2.Size = new System.Drawing.Size(23, 23);
 			this.buttonChangeFontBuiltin2.TabIndex = 13;
@@ -169,13 +173,49 @@
 			this.buttonChangeFontBuiltin2.UseVisualStyleBackColor = true;
 			this.buttonChangeFontBuiltin2.Click += new System.EventHandler(this.buttonChangeFontBuiltin2_Click);
 			// 
+			// labelConsoleDisplaySize
+			// 
+			this.labelConsoleDisplaySize.AutoSize = true;
+			this.labelConsoleDisplaySize.Location = new System.Drawing.Point(12, 42);
+			this.labelConsoleDisplaySize.Name = "labelConsoleDisplaySize";
+			this.labelConsoleDisplaySize.Size = new System.Drawing.Size(167, 13);
+			this.labelConsoleDisplaySize.TabIndex = 1;
+			this.labelConsoleDisplaySize.Text = "Console Display Size (characters):";
+			// 
+			// textBoxConsoleDisplaySize
+			// 
+			this.textBoxConsoleDisplaySize.Location = new System.Drawing.Point(212, 39);
+			this.textBoxConsoleDisplaySize.Name = "textBoxConsoleDisplaySize";
+			this.textBoxConsoleDisplaySize.Size = new System.Drawing.Size(100, 20);
+			this.textBoxConsoleDisplaySize.TabIndex = 2;
+			// 
+			// labelConsoleLogicalSize
+			// 
+			this.labelConsoleLogicalSize.AutoSize = true;
+			this.labelConsoleLogicalSize.Location = new System.Drawing.Point(12, 68);
+			this.labelConsoleLogicalSize.Name = "labelConsoleLogicalSize";
+			this.labelConsoleLogicalSize.Size = new System.Drawing.Size(167, 13);
+			this.labelConsoleLogicalSize.TabIndex = 3;
+			this.labelConsoleLogicalSize.Text = "Console Logical Size (characters):";
+			// 
+			// textBoxConsoleLogicalSize
+			// 
+			this.textBoxConsoleLogicalSize.Location = new System.Drawing.Point(212, 65);
+			this.textBoxConsoleLogicalSize.Name = "textBoxConsoleLogicalSize";
+			this.textBoxConsoleLogicalSize.Size = new System.Drawing.Size(100, 20);
+			this.textBoxConsoleLogicalSize.TabIndex = 4;
+			// 
 			// ConfigurationForm
 			// 
 			this.AcceptButton = this.buttonSave;
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.CancelButton = this.buttonCancel;
-			this.ClientSize = new System.Drawing.Size(327, 490);
+			this.ClientSize = new System.Drawing.Size(324, 539);
+			this.Controls.Add(this.textBoxConsoleLogicalSize);
+			this.Controls.Add(this.labelConsoleLogicalSize);
+			this.Controls.Add(this.textBoxConsoleDisplaySize);
+			this.Controls.Add(this.labelConsoleDisplaySize);
 			this.Controls.Add(this.buttonChangeFontBuiltin2);
 			this.Controls.Add(this.buttonChangeFontBuiltin1);
 			this.Controls.Add(this.buttonCancel);
@@ -215,6 +255,10 @@
 		private System.Windows.Forms.Button buttonCancel;
 		private System.Windows.Forms.Button buttonChangeFontBuiltin1;
 		private System.Windows.Forms.Button buttonChangeFontBuiltin2;
+		private System.Windows.Forms.Label labelConsoleDisplaySize;
+		private System.Windows.Forms.TextBox textBoxConsoleDisplaySize;
+		private System.Windows.Forms.Label labelConsoleLogicalSize;
+		private System.Windows.Forms.TextBox textBoxConsoleLogicalSize;
 
 	}
 }
