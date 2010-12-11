@@ -5,12 +5,13 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO; // Disambiguate from System.Drawing.Font
+using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using Putty;
 using ShinyConsole;
 using SlimDX.Windows;
-using Font = ShinyConsole.Font;
+using Font = ShinyConsole.Font; // Disambiguate from System.Drawing.Font
 
 namespace TtyRecMonkey {
 	[System.ComponentModel.DesignerCategory("")]
@@ -115,14 +116,13 @@ namespace TtyRecMonkey {
 			){
 				using ( Decoder ) {}
 				Decoder = null;
-				DecoderData.Position = 0;
 				Decoder = new TtyRecKeyframeDecoder( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH, DecoderData);
 			}
 
 			if ( resize ) ClientSize=ActiveSize;
 		}
 
-		Stream                DecoderData = null;
+		TtyRecPacket[]        DecoderData = null;
 		TtyRecKeyframeDecoder Decoder = null;
 		int PlaybackSpeed;
 		TimeSpan Seek;
@@ -130,19 +130,36 @@ namespace TtyRecMonkey {
 
 		void OpenFile() {
 			var open = new OpenFileDialog()
-				{ CheckFileExists = true
-				, DefaultExt = "ttyrec"
-				, Filter = "TtyRec Files|*.ttyrec|All Files|*"
+				{ CheckFileExists  = true
+				, DefaultExt       = "ttyrec"
+				, Filter           = "TtyRec Files|*.ttyrec|All Files|*"
 				, InitialDirectory = @"I:\home\media\ttyrecs\"
-				, Multiselect = false
+				, Multiselect      = true
 				, RestoreDirectory = true
-				, Title = "Select a TtyRec to play"
+				, Title            = "Select a TtyRec to play"
 				};
 			if ( open.ShowDialog(this) != DialogResult.OK ) return;
-			using ( DecoderData ) {}
-			DecoderData = null;
-			DecoderData = open.OpenFile();
+
+			var files = open.FileNames;
 			using ( open ) {} open = null;
+			DoOpenFiles(files);
+		}
+
+		void DoOpenFiles( string[] files ) {
+			var delay = TimeSpan.Zero;
+
+			if ( files.Length>1 ) {
+				// multiselect!
+
+				var fof = new FileOrderingForm(files);
+				if ( fof.ShowDialog(this) != DialogResult.OK ) return;
+				files = fof.FileOrder.ToArray();
+				delay = TimeSpan.FromSeconds(fof.SecondsBetweenFiles);
+			}
+
+			var streams = files.Select(f=>File.OpenRead(f) as Stream);
+			DecoderData = null;
+			DecoderData = TtyRecKeyframeDecoder.DecodePackets( streams, delay ).ToArray();
 			using ( Decoder ) {}
 			Decoder = null;
 			Decoder = new TtyRecKeyframeDecoder( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH, DecoderData );
@@ -273,8 +290,9 @@ namespace TtyRecMonkey {
 			return string.Format( "{0:0,0}PB", bytes );
 		}
 
-		[STAThread] static void Main() {
+		[STAThread] static void Main( string[] args ) {
 			using ( var form = new PlayerForm() ) {
+				if ( args.Length>0 ) form.DoOpenFiles(args);
 				MessagePump.Run( form, form.MainLoop );
 			}
 		}
