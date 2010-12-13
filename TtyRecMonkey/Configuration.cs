@@ -24,6 +24,8 @@ namespace TtyRecMonkey {
 		[OptionalField] public int LogicalConsoleSizeW;
 		[OptionalField] public int LogicalConsoleSizeH;
 
+		[OptionalField] public Font GdiFont;
+
 		public ConfigurationData1() {
 			FillOptionals( default(StreamingContext) );
 		}
@@ -33,6 +35,7 @@ namespace TtyRecMonkey {
 			if ( DisplayConsoleSizeH == 0 ) DisplayConsoleSizeH = 50;
 			if ( LogicalConsoleSizeW == 0 ) LogicalConsoleSizeW = 80;
 			if ( LogicalConsoleSizeH == 0 ) LogicalConsoleSizeH = 50;
+			if ( GdiFont == null ) GdiFont = new Font("Courier New", 8.25f);
 		}
 	}
 

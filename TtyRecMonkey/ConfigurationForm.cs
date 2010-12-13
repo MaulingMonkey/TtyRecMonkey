@@ -10,6 +10,8 @@ using TtyRecMonkey.Properties;
 
 namespace TtyRecMonkey {
 	public partial class ConfigurationForm : Form {
+		Font LastGdiFont;
+
 		public ConfigurationForm() {
 			InitializeComponent();
 
@@ -59,6 +61,7 @@ namespace TtyRecMonkey {
 			Configuration.Main.FontOverlapX          = fonto[0];
 			Configuration.Main.FontOverlapY          = fonto[1];
 			Configuration.Main.Font                  = (Bitmap)pictureBoxFontPreview.Image;
+			if ( LastGdiFont!=null ) Configuration.Main.GdiFont = LastGdiFont;
 
 			Configuration.Save( this );
 			DialogResult = DialogResult.OK;
@@ -71,12 +74,13 @@ namespace TtyRecMonkey {
 				, AllowSimulations   = true
 				, AllowVectorFonts   = true
 				, AllowVerticalFonts = true
+				, Font               = (LastGdiFont==null) ? Configuration.Main.GdiFont : LastGdiFont
 				, FontMustExist      = true
 				, ShowColor          = false
 				};
 			var result = dialog.ShowDialog(this);
 			if ( result != DialogResult.OK ) return;
-			var font = dialog.Font;
+			var font = LastGdiFont = dialog.Font;
 
 			Size touse = new Size(0,0);
 			for ( char ch=(char)0 ; ch<(char)255 ; ++ch ) {
