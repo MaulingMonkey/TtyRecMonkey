@@ -67,6 +67,8 @@
     <Compile Include="FileOrderingForm.Designer.cs">
       <DependentUpon>FileOrderingForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="TtyRecKeyframePacket.cs" />
+    <Compile Include="TtyRecPacket.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>

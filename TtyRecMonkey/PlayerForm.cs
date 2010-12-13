@@ -159,7 +159,7 @@ namespace TtyRecMonkey {
 
 			var streams = files.Select(f=>File.OpenRead(f) as Stream);
 			DecoderData = null;
-			DecoderData = TtyRecKeyframeDecoder.DecodePackets( streams, delay ).ToArray();
+			DecoderData = TtyRecPacket.DecodePackets( streams, delay ).ToArray();
 			using ( Decoder ) {}
 			Decoder = null;
 			Decoder = new TtyRecKeyframeDecoder( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH, DecoderData );

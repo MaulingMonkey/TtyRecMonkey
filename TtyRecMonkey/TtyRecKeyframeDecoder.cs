@@ -5,108 +5,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using Putty;
 
 namespace TtyRecMonkey {
-	struct TtyRecPacket {
-		public TimeSpan SinceStart;
-		public byte[]   Payload;
-	}
-
 	struct TtyRecFrame {
 		public TimeSpan SinceStart;
 		public TerminalCharacter[,] Data;
 	}
 
 	class TtyRecKeyframeDecoder : IDisposable {
-		class AnnotatedPacket {
-			public TimeSpan             SinceStart;
-			public byte[]               Payload;
-			public Terminal             RestartPosition;
-			public TerminalCharacter[,] DecodedCache;
-			public WeakReference        DecodedCacheWeak;
-		}
-
-		public static IEnumerable<TtyRecPacket> DecodePackets( IEnumerable<Stream> streams, TimeSpan delay_between_streams ) {
-			TimeSpan BaseDelay    = TimeSpan.Zero;
-			TimeSpan LastPacketSS = TimeSpan.Zero;
-
-			bool first_stream = true;
-
-			foreach ( var stream in streams ) {
-				var reader = new BinaryReader(stream);
-				int first_sec  = int.MinValue;
-				int first_usec = int.MinValue;
-
-				while ( stream.Position < stream.Length ) {
-					bool first_packet_of_stream = stream.Position==0;
-					int sec  = reader.ReadInt32();
-					int usec = reader.ReadInt32();
-					int len  = reader.ReadInt32();
-
-					if ( first_packet_of_stream ) {
-						first_sec  = sec;
-						first_usec = usec;
-
-						if ( !first_stream ) yield return new TtyRecPacket() { SinceStart = BaseDelay, Payload = null }; // force a restart
-						first_stream = false;
-					}
-
-					var since_start = TimeSpan.FromSeconds(sec-first_sec) + TimeSpan.FromMilliseconds((usec-first_usec)/1000);
-
-					yield return new TtyRecPacket()
-						{ SinceStart = LastPacketSS = BaseDelay + since_start
-						, Payload    = reader.ReadBytes(len)
-						};
-				}
-
-				BaseDelay = LastPacketSS + delay_between_streams;
-			}
-		}
-
-		IEnumerable<AnnotatedPacket> AnnotatePackets( int w, int h, IEnumerable<TtyRecPacket> packets ) {
-			var term = new Terminal(w,h);
-			var memory_budget3 = Configuration.Main.ChunksTargetMemoryMB * 1000 * 1000;
-			var time_budget = TimeSpan.FromMilliseconds( Configuration.Main.ChunksTargetLoadMS );
-
-			var last_restart_position_time = DateTime.MinValue;
-			var last_restart_memory_avail  = memory_budget3/3;
-
-			foreach ( var packet in packets ) {
-				var now = DateTime.Now;
-
-				bool need_restart
-					=  (last_restart_position_time+time_budget < now)
-					|| (last_restart_memory_avail <= 1000)
-					;
-
-				if ( packet.Payload == null ) {
-					using ( term ) {}
-					term = new Terminal(w,h);
-					need_restart = true;
-				}
-
-				yield return new AnnotatedPacket()
-					{ SinceStart      = packet.SinceStart
-					, Payload         = packet.Payload
-					, RestartPosition = need_restart ? new Terminal(term) : null
-					};
-
-				if ( need_restart ) {
-					last_restart_position_time = now;
-					last_restart_memory_avail = memory_budget3/3;
-					++Keyframes;
-				} else {
-					last_restart_memory_avail -= w*h*12;
-				}
-
-				if ( packet.Payload!=null ) term.Send( packet.Payload );
-			}
-			using ( term ) {}
-		}
-
 		public void Dispose() {
 			foreach ( var ap in Packets ) using ( ap.RestartPosition ) {}
 			Packets.Clear();
@@ -218,7 +126,7 @@ namespace TtyRecMonkey {
 		public TtyRecKeyframeDecoder( int w, int h, TtyRecPacket[] data ) {
 			Width  = w;
 			Height = h;
-			Packets = AnnotatePackets( w, h, data ).ToList();
+			Packets = AnnotatedPacket.AnnotatePackets( w, h, data ).ToList();
 			if ( Packets.Count<=0 ) return;
 			CurrentFrame = DumpTerminal( Packets[0].RestartPosition, Packets[0].SinceStart );
 		}
