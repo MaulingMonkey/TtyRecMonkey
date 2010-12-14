@@ -5,10 +5,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using Putty;
-using System.Threading;
 using System.IO;
+using System.Linq;
+using System.Threading;
+using Putty;
 
 namespace TtyRecMonkey {
 	struct TtyRecFrame {
