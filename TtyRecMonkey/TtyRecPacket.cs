@@ -11,13 +11,17 @@ namespace TtyRecMonkey {
 		public TimeSpan SinceStart;
 		public byte[]   Payload;
 
-		public static IEnumerable<TtyRecPacket> DecodePackets( IEnumerable<Stream> streams, TimeSpan delay_between_streams ) {
+		public static IEnumerable<TtyRecPacket> DecodePackets( IEnumerable<Stream> streams, TimeSpan delay_between_streams, Func<bool> checkinterrupt ) {
 			TimeSpan BaseDelay    = TimeSpan.Zero;
 			TimeSpan LastPacketSS = TimeSpan.Zero;
 
 			bool first_stream = true;
 
 			foreach ( var stream in streams ) {
+				if ( checkinterrupt() ) break;
+
+				stream.Position = 0;
+
 				var reader = new BinaryReader(stream);
 				int first_sec  = int.MinValue;
 				int first_usec = int.MinValue;

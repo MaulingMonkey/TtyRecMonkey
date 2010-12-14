@@ -18,9 +18,15 @@ namespace TtyRecMonkey {
 
 	class TtyRecKeyframeDecoder : IDisposable {
 		public void Dispose() {
+			// n.b. Resize uses this -- we may need to refactor if we need to do something permanent
+
+			LoadCancel = true;
 			LoadThread.Join();
 			foreach ( var ap in Packets ) using ( ap.RestartPosition ) {}
 			Packets.Clear();
+
+			Debug.Assert( !LoadThread.IsAlive ); // We assert this...
+			LoadPacketBuffer.Clear(); // ... because we're not locking this.
 		}
 
 		TtyRecFrame DumpTerminal( Terminal term, TimeSpan since_start ) {
@@ -48,7 +54,7 @@ namespace TtyRecMonkey {
 			if ( after_seek == -1 ) after_seek = Packets.Count;
 
 			// we now have goalposts 'before_seek' and 'after_seek' which fence our seek target
-			// expand our breadth one more restart pole:
+			// expand our breadth one more restart marker:
 
 			before_seek = Packets.FindLastIndex( Math.Max(0,before_seek-1), ap=>ap.RestartPosition!=null );
 			if ( before_seek == -1 ) before_seek = 0;
@@ -149,10 +155,10 @@ namespace TtyRecMonkey {
 		}
 
 		public void Resize( int w, int h ) {
-			LoadThread.Join();
-
+			Dispose();
 			Width  = w;
 			Height = h;
+			LoadCancel = false;
 
 			LoadThread = new Thread(()=>DoBackgroundLoad());
 			LoadThread.Start();
@@ -162,10 +168,11 @@ namespace TtyRecMonkey {
 		Thread              LoadThread;
 		IEnumerable<Stream> LoadStreams;
 		TimeSpan            LoadBetweenStreamDelay;
+		volatile bool       LoadCancel;
 
 		void DoBackgroundLoad() {
-			var decoded   = TtyRecPacket.DecodePackets( LoadStreams, LoadBetweenStreamDelay );
-			var annotated = AnnotatedPacket.AnnotatePackets( Width, Height, decoded );
+			var decoded   = TtyRecPacket.DecodePackets( LoadStreams, LoadBetweenStreamDelay, ()=>LoadCancel );
+			var annotated = AnnotatedPacket.AnnotatePackets( Width, Height, decoded, ()=>LoadCancel );
 
 			var buffer = new List<AnnotatedPacket>();
 
@@ -174,12 +181,15 @@ namespace TtyRecMonkey {
 #endif
 
 			foreach ( var ap in annotated ) {
-				buffer.Add(ap);
 				if ( ap.RestartPosition!=null ) { // n.b.:  We feed entire 'keyframe' chunks at a time to avoid SetActiveRange throwing a fit and using Putty on the chunk each time
 					lock ( LoadPacketBuffer ) LoadPacketBuffer.Enqueue(buffer);
 					buffer = new List<AnnotatedPacket>();
 				}
+				buffer.Add(ap);
 			}
+
+			lock ( LoadPacketBuffer ) LoadPacketBuffer.Enqueue(buffer);
+			buffer = null;
 		}
 
 		public int  Keyframes { get; private set; }

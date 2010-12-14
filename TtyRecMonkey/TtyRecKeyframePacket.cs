@@ -16,7 +16,7 @@ namespace TtyRecMonkey {
 
 		public bool IsKeyframe { get { return RestartPosition!=null; }}
 
-		public static IEnumerable<AnnotatedPacket> AnnotatePackets( int w, int h, IEnumerable<TtyRecPacket> packets ) {
+		public static IEnumerable<AnnotatedPacket> AnnotatePackets( int w, int h, IEnumerable<TtyRecPacket> packets, Func<bool> checkinterrupt ) {
 			var term = new Terminal(w,h);
 			var memory_budget3 = Configuration.Main.ChunksTargetMemoryMB * 1000 * 1000;
 			var time_budget = TimeSpan.FromMilliseconds( Configuration.Main.ChunksTargetLoadMS );
@@ -25,6 +25,8 @@ namespace TtyRecMonkey {
 			var last_restart_memory_avail  = memory_budget3/3;
 
 			foreach ( var packet in packets ) {
+				if ( checkinterrupt() ) break;
+
 				var now = DateTime.Now;
 
 				bool need_restart
