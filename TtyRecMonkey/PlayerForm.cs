@@ -58,7 +58,9 @@ namespace TtyRecMonkey {
 
 		protected override void Dispose( bool disposing ) {
 			if ( disposing ) {
+#if DEBUG // Temporary hack: Just leak shit on close instead of potentially blocking when we're quitting
 				using ( Decoder ) {} Decoder = null;
+#endif
 			}
 			base.Dispose(disposing);
 		}
@@ -114,15 +116,15 @@ namespace TtyRecMonkey {
 				|| Configuration.Main.LogicalConsoleSizeH != Decoder.CurrentFrame.Data.GetLength(1)
 				)
 			){
-				using ( Decoder ) {}
-				Decoder = null;
-				Decoder = new TtyRecKeyframeDecoder( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH, DecoderData);
+				var oldc = Cursor;
+				Cursor = Cursors.WaitCursor;
+				Decoder.Resize( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH );
+				Cursor = oldc;
 			}
 
 			if ( resize ) ClientSize=ActiveSize;
 		}
 
-		TtyRecPacket[]        DecoderData = null;
 		TtyRecKeyframeDecoder Decoder = null;
 		int PlaybackSpeed;
 		TimeSpan Seek;
@@ -158,11 +160,12 @@ namespace TtyRecMonkey {
 			}
 
 			var streams = files.Select(f=>File.OpenRead(f) as Stream);
-			DecoderData = null;
-			DecoderData = TtyRecPacket.DecodePackets( streams, delay ).ToArray();
+			var oldc = Cursor;
+			Cursor = Cursors.WaitCursor;
 			using ( Decoder ) {}
+			Cursor = oldc;
 			Decoder = null;
-			Decoder = new TtyRecKeyframeDecoder( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH, DecoderData );
+			Decoder = new TtyRecKeyframeDecoder( Configuration.Main.LogicalConsoleSizeW, Configuration.Main.LogicalConsoleSizeH, streams, delay );
 			PlaybackSpeed = +1;
 			Seek = TimeSpan.Zero;
 		}

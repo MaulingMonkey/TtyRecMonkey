@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Putty;
+using System.Threading;
+using System.IO;
 
 namespace TtyRecMonkey {
 	struct TtyRecFrame {
@@ -16,6 +18,7 @@ namespace TtyRecMonkey {
 
 	class TtyRecKeyframeDecoder : IDisposable {
 		public void Dispose() {
+			LoadThread.Join();
 			foreach ( var ap in Packets ) using ( ap.RestartPosition ) {}
 			Packets.Clear();
 		}
@@ -106,6 +109,15 @@ namespace TtyRecMonkey {
 		}
 
 		public void Seek( TimeSpan when ) {
+			lock ( LoadPacketBuffer ) {
+				while ( LoadPacketBuffer.Count>0 ) {
+					var apr = LoadPacketBuffer.Dequeue();
+					Keyframes += apr.Count(ap=>ap.IsKeyframe);
+					Packets.AddRange( apr );
+				}
+			}
+			if ( Packets.Count<=0 ) return;
+
 			DumpChunksAround(when);
 			var i = Packets.FindLastIndex( ap => ap.SinceStart < when );
 			if ( i==-1 ) i=0;
@@ -115,20 +127,59 @@ namespace TtyRecMonkey {
 		}
 
 		public TimeSpan Length { get {
-			return Packets.Last().SinceStart;
+			return Packets.Count>0 ? Packets.Last().SinceStart : TimeSpan.Zero;
 		}}
 
-		readonly List<AnnotatedPacket> Packets;
+		readonly List<AnnotatedPacket> Packets = new List<AnnotatedPacket>();
 		public TtyRecFrame CurrentFrame;
 
 		public int Width  { get; private set; }
 		public int Height { get; private set; }
-		public TtyRecKeyframeDecoder( int w, int h, TtyRecPacket[] data ) {
+		public TtyRecKeyframeDecoder( int w, int h, IEnumerable<Stream> streams, TimeSpan between_stream_delay ) {
 			Width  = w;
 			Height = h;
-			Packets = AnnotatedPacket.AnnotatePackets( w, h, data ).ToList();
+
+			LoadThread = new Thread(()=>DoBackgroundLoad());
+			LoadStreams = streams;
+			LoadBetweenStreamDelay = between_stream_delay;
+			LoadThread.Start();
+
 			if ( Packets.Count<=0 ) return;
 			CurrentFrame = DumpTerminal( Packets[0].RestartPosition, Packets[0].SinceStart );
+		}
+
+		public void Resize( int w, int h ) {
+			LoadThread.Join();
+
+			Width  = w;
+			Height = h;
+
+			LoadThread = new Thread(()=>DoBackgroundLoad());
+			LoadThread.Start();
+		}
+
+		readonly Queue<IEnumerable<AnnotatedPacket>> LoadPacketBuffer = new Queue<IEnumerable<AnnotatedPacket>>();
+		Thread              LoadThread;
+		IEnumerable<Stream> LoadStreams;
+		TimeSpan            LoadBetweenStreamDelay;
+
+		void DoBackgroundLoad() {
+			var decoded   = TtyRecPacket.DecodePackets( LoadStreams, LoadBetweenStreamDelay );
+			var annotated = AnnotatedPacket.AnnotatePackets( Width, Height, decoded );
+
+			var buffer = new List<AnnotatedPacket>();
+
+#if DEBUG
+			Thread.Sleep(1000); // make sure everything can handle having 0 packets in the buffer for a bit
+#endif
+
+			foreach ( var ap in annotated ) {
+				buffer.Add(ap);
+				if ( ap.RestartPosition!=null ) { // n.b.:  We feed entire 'keyframe' chunks at a time to avoid SetActiveRange throwing a fit and using Putty on the chunk each time
+					lock ( LoadPacketBuffer ) LoadPacketBuffer.Enqueue(buffer);
+					buffer = new List<AnnotatedPacket>();
+				}
+			}
 		}
 
 		public int  Keyframes { get; private set; }
