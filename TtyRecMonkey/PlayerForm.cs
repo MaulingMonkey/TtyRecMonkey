@@ -229,12 +229,13 @@ namespace TtyRecMonkey {
 			
 
 			Text = string.Format
-				( "TtyRecMonkey -- {0} FPS -- {1} @ {2} of {3} ({4} keyframes) -- Speed {5} -- GC recognized memory: {6}"
+				( "TtyRecMonkey -- {0} FPS -- {1} @ {2} of {3} ({4} keyframes {5} packets) -- Speed {6} -- GC recognized memory: {7}"
 				, PreviousFrames.Count
 				, PrettyTimeSpan( Seek )
 				, Decoder==null ? "N/A" : PrettyTimeSpan( Decoder.CurrentFrame.SinceStart )
 				, Decoder==null ? "N/A" : PrettyTimeSpan( Decoder.Length )
 				, Decoder==null ? "N/A" : Decoder.Keyframes.ToString()
+				, Decoder==null ? "N/A" : Decoder.PacketCount.ToString()
 				, PlaybackSpeed
 				, PrettyByteCount( GC.GetTotalMemory(false) )
 				);
@@ -276,7 +277,10 @@ namespace TtyRecMonkey {
 		}
 
 		static string PrettyTimeSpan( TimeSpan ts ) {
-			return string.Format( "{0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds );
+			return ts.Days == 0
+				? string.Format(           "{0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds )
+				: string.Format( "{3} days, {0:00}:{1:00}:{2:00}", ts.Hours, ts.Minutes, ts.Seconds, ts.Days )
+				;
 		}
 
 		static string PrettyByteCount( long bytes ) {

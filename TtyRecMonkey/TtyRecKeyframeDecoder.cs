@@ -193,5 +193,6 @@ namespace TtyRecMonkey {
 		}
 
 		public int  Keyframes { get; private set; }
+		public int  PacketCount { get { return Packets.Count; }}
 	}
 }
