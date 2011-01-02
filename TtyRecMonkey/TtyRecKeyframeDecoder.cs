@@ -46,9 +46,37 @@ namespace TtyRecMonkey {
 			return frame;
 		}
 
+		static int BinarySearchIndex<T>( IList<T> list, Func<T,bool> cond ) {
+			int begin=0, end=list.Count;
+			if ( end==0 ) return -1; // empty list
+
+			while ( end-begin >= 10 ) {
+				int mid = (begin+end)/2;
+
+				if ( cond(list[mid]) ) {
+					end = mid+1;
+				} else {
+					begin = mid+1;
+				}
+			}
+
+			if ( begin>0        ) Debug.Assert(!cond(list[begin-1]));
+			if ( end<list.Count ) Debug.Assert(cond(list[end]));
+
+			for ( int i=begin ; i<end ; ++i ) if ( cond(list[i]) ) return i;
+			return -1;
+		}
+
 		void DumpChunksAround( TimeSpan seektarget ) {
-			var before_seek = Packets.FindLastIndex( ap => ap.RestartPosition!=null && ap.SinceStart <= seektarget );
-			if ( before_seek == -1 ) before_seek = 0;
+			var before_seek = BinarySearchIndex( Packets, ap => ap.SinceStart > seektarget )-1;
+			if ( before_seek<0 ) before_seek = 0;
+			while ( before_seek>0 && Packets[before_seek].RestartPosition==null ) --before_seek;
+
+#if DEBUG
+			var reference_before_seek = Packets.FindLastIndex( ap => ap.RestartPosition!=null && ap.SinceStart <= seektarget );
+			if ( reference_before_seek == -1 ) reference_before_seek = 0;
+			Debug.Assert( before_seek == reference_before_seek );
+#endif
 
 			var after_seek = Packets.FindIndex( before_seek+1, ap => ap.RestartPosition!=null && ap.SinceStart > seektarget );
 			if ( after_seek == -1 ) after_seek = Packets.Count;
@@ -70,6 +98,8 @@ namespace TtyRecMonkey {
 			SetActiveRange( before_seek, after_seek );
 		}
 
+		int LastActiveRangeStart = int.MaxValue;
+		int LastActiveRangeEnd   = int.MinValue;
 		void SetActiveRange( int start, int end ) {
 			Debug.Assert( start<end );
 			Debug.Assert( Packets[start].RestartPosition != null );
@@ -90,8 +120,10 @@ namespace TtyRecMonkey {
 			}
 
 			// Next, we stop strong referencing everything otuside this range:
-			for ( int i=0   ; i<start         ; ++i ) Packets[i].DecodedCache = null;
-			for ( int i=end ; i<Packets.Count ; ++i ) Packets[i].DecodedCache = null;
+			for ( int i=LastActiveRangeStart ; i<start              ; ++i ) Packets[i].DecodedCache = null;
+			for ( int i=end                  ; i<LastActiveRangeEnd ; ++i ) Packets[i].DecodedCache = null;
+			LastActiveRangeStart = start;
+			LastActiveRangeEnd   = end;
 
 			if (!need_decode) return;
 
@@ -125,8 +157,8 @@ namespace TtyRecMonkey {
 			if ( Packets.Count<=0 ) return;
 
 			DumpChunksAround(when);
-			var i = Packets.FindLastIndex( ap => ap.SinceStart < when );
-			if ( i==-1 ) i=0;
+			var i = BinarySearchIndex( Packets, ap => ap.SinceStart >= when )-1;
+			if ( i<0 ) i=0;
 			Debug.Assert(Packets[i].DecodedCache!=null);
 			CurrentFrame.SinceStart = Packets[i].SinceStart;
 			CurrentFrame.Data       = Packets[i].DecodedCache;
