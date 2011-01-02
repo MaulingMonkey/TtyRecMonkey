@@ -67,9 +67,16 @@ namespace TtyRecMonkey {
 			return -1;
 		}
 
+		static int BinarySearchIndexBefore<T>( IList<T> list, Func<T,bool> cond ) {
+			int i = BinarySearchIndex( list, cond );
+			if ( i == -1 ) return list.Count-1;
+			if ( i ==  0 ) return -1;
+			return i-1;
+		}
+
 		void DumpChunksAround( TimeSpan seektarget ) {
-			var before_seek = BinarySearchIndex( Packets, ap => ap.SinceStart > seektarget )-1;
-			if ( before_seek<0 ) before_seek = 0;
+			var before_seek = BinarySearchIndexBefore( Packets, ap => ap.SinceStart > seektarget );
+			if ( before_seek==-1 ) before_seek=0;
 			while ( before_seek>0 && Packets[before_seek].RestartPosition==null ) --before_seek;
 
 #if DEBUG
@@ -157,8 +164,8 @@ namespace TtyRecMonkey {
 			if ( Packets.Count<=0 ) return;
 
 			DumpChunksAround(when);
-			var i = BinarySearchIndex( Packets, ap => ap.SinceStart >= when )-1;
-			if ( i<0 ) i=0;
+			var i = BinarySearchIndexBefore( Packets, ap => ap.SinceStart >= when );
+			if ( i==-1 ) i=0;
 			Debug.Assert(Packets[i].DecodedCache!=null);
 			CurrentFrame.SinceStart = Packets[i].SinceStart;
 			CurrentFrame.Data       = Packets[i].DecodedCache;
