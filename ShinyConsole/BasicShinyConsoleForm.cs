@@ -72,6 +72,15 @@ namespace ShinyConsole {
 			ClientSize = ActiveSize;
 		}
 
+		protected override void Dispose( bool disposing ) {
+			if ( disposing ) {
+				TeardownDevice();
+				Device = null;
+				using ( D3D ) {}
+			}
+			base.Dispose(disposing);
+		}
+
 		protected override void OnResize( EventArgs e ) {
 			TeardownDevice();
 			Device = null;
