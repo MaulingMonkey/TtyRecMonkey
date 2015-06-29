@@ -1,3 +1,0 @@
-- Replay search feature
-- Better UI for seek/speed/etc
-- TtyRec appending?
