@@ -13,9 +13,6 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D7B1D523-2D87-4719-9F18-B7F6B11D44F8}"
 	ProjectSection(SolutionItems) = preProject
 		LICENSE.txt = LICENSE.txt
-		OVERVIEW.txt = OVERVIEW.txt
-		README.txt = README.txt
-		TODO.txt = TODO.txt
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PuttySharp", "PuttySharp\PuttySharp.csproj", "{6ECD1D84-437E-40A0-832D-C5D06762A6F0}"
