@@ -10,8 +10,10 @@ See the latest [Releases](https://github.com/MaulingMonkey/TtyRecMonkey/releases
 
 ## Placeholder Controls
 
+```
 ZXCVBNM    Alter playback speed (-100x, -10x, -1x, 0x, +1x, +10x, +100x)
 AS         Zoom In/Out
+```
 
 ## Contact
 
@@ -50,9 +52,9 @@ If you simply want to track changes, read only git access is available at:
 
 ### PuttyDLL
 
-	PuttyDLL is a native C project which is almost a direct replica of PUTTY.DSP project from the official PuTTY source code.
+PuttyDLL is a native C project which is almost a direct replica of PUTTY.DSP project from the official PuTTY source code.
 
-	Key differences:
+Key differences:
 
 - It's been converted to a VS2008 project via the upgrade manager (which worked flawlessly)
 - It now generates DLLs instead of EXEs
@@ -63,14 +65,14 @@ If you simply want to track changes, read only git access is available at:
 
 ### PuttySharp
 
-	PuttySharp is a C# library which wraps the methods exposed by PuttyDLL for easier consumption in C#
+PuttySharp is a C# library which wraps the methods exposed by PuttyDLL for easier consumption in C#
 
 It is currently small enough that it ended up well commented and designed.  This probably won't last very long.
 
 
 ### ShinyConsole
 
-	ShinyConsole is a C# program which provides and tests SlimDX/D3D9 based console text rendering
+ShinyConsole is a C# program which provides and tests SlimDX/D3D9 based console text rendering
 
 It is crufty and in need of sanitization.
 
@@ -80,9 +82,9 @@ It is used as a library by TtyPlayer, despite being a program.
 
 ### TtyRecMonkey
 
-	TtyRecMonkey is the main C# program which is the point of this project.  It is not well written.
+TtyRecMonkey is the main C# program which is the point of this project.  It is not well written.
 
-	It currently handles:
+It currently handles:
 
 - Parsing (to be spin off?) of TtyRecs
 - Basic playback of TtyRecs
