@@ -1,3 +1,5 @@
+![Screenshot](https://raw.githubusercontent.com/MaulingMonkey/TtyRecMonkey/master/.projnfo/screenshots/Untitled.png)
+
 # Quickstart
 
 Please read [LICENSE.txt](https://github.com/MaulingMonkey/TtyRecMonkey/blob/master/LICENSE.txt) for license terms
