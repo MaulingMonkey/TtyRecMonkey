@@ -2,6 +2,9 @@ Thumbs.db
 *.suo
 *.ncb
 *.user
+*.sdf
+*.opensdf
+*.mdmp
 obj/
 bin/
 Debug/

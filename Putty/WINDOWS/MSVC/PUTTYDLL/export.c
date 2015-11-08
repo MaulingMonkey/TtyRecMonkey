@@ -9,9 +9,19 @@
 
 #define EXPORT(rt) __declspec(dllexport) rt
 
+extern Conf *conf;
+
+static Conf* get_default_config() {
+	if (!conf) {
+		conf = conf_new();
+		load_open_settings( NULL, conf );
+		conf_set_int(conf, CONF_logflush, 0);
+	}
+	return conf;
+}
+
 EXPORT(Terminal*) CreatePuttyTerminal( int w, int h ) {
 	int i;
-	Config config = {0};
 	struct unicode_data* unicode;
 	Terminal* terminal;
 
@@ -23,7 +33,7 @@ EXPORT(Terminal*) CreatePuttyTerminal( int w, int h ) {
 		//unicode->unitab_line[i]=i;
 	}
 
-	terminal = term_init( &config, unicode, NULL );
+	terminal = term_init( get_default_config(), unicode, NULL );
 	term_size( terminal, h, w, 0 );
 
 	return terminal;
@@ -54,11 +64,13 @@ EXPORT(Terminal*) ClonePuttyTerminal( Terminal* term ) {
 
 	unicode = snew(struct unicode_data);
 	memcpy( unicode, term->ucsdata, sizeof(struct unicode_data) );
-	clone = term_init( &term->cfg, unicode, NULL );
+	clone = term_init( get_default_config(), unicode, NULL );
 	term_size( clone, term->rows, term->cols, 0 );
 	restore = *clone;
 
 	memcpy( clone, term, sizeof(Terminal) );
+
+	clone->conf       = restore.conf;
 
 	clone->screen     = restore.screen;     copy_termlines( clone->screen    , term->screen     );
 	clone->scrollback = restore.scrollback; copy_termlines( clone->scrollback, term->scrollback );
