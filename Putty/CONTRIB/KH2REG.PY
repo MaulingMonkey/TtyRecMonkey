@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 
-# $Id: kh2reg.py 5480 2005-03-10 16:36:05Z jacob $
 # Convert OpenSSH known_hosts and known_hosts2 files to "new format" PuTTY
 # host keys.
 #   usage:
@@ -9,7 +8,8 @@
 #     kh2reg.py --unix    known_hosts1 2 3 4 ... > sshhostkeys
 #       Creates data suitable for storing in ~/.putty/sshhostkeys (Unix).
 # Line endings are someone else's problem as is traditional.
-# Developed for Python 1.5.2.
+# Originally developed for Python 1.5.2, but probably won't run on that
+# any more.
 
 import fileinput
 import base64
@@ -64,6 +64,13 @@ if output_type == 'windows':
 [HKEY_CURRENT_USER\Software\SimonTatham\PuTTY\SshHostKeys]
 """)
 
+class BlankInputLine(Exception):
+    pass
+
+class UnknownKeyType(Exception):
+   def __init__(self, keytype):
+       self.keytype = keytype
+
 # Now process all known_hosts input.
 for line in fileinput.input(args):
 
@@ -73,7 +80,7 @@ for line in fileinput.input(args):
 
         # Skip blanks and comments
         if line == '' or line[0] == '#':
-            raise "Skipping input line"
+            raise BlankInputLine
 
         # Split line on spaces.
         fields = string.split (line, ' ')
@@ -120,7 +127,7 @@ for line in fileinput.input(args):
             if   sshkeytype == "ssh-rsa":   keytype = "rsa2"
             elif sshkeytype == "ssh-dss":   keytype = "dss"
             else:
-                raise "Unknown SSH key type", sshkeytype
+                raise UnknownKeyType(sshkeytype)
 
         # Now print out one line per host pattern, discarding wildcards.
         for host in string.split (hostpat, ','):
@@ -128,10 +135,17 @@ for line in fileinput.input(args):
                 sys.stderr.write("Skipping wildcard host pattern '%s'\n"
                                  % host)
                 continue
+            elif re.match (r"\|", host):
+                sys.stderr.write("Skipping hashed hostname '%s'\n" % host)
+                continue
             else:
-                # Slightly bizarre key format: 'type@port:hostname'
-                # As far as I know, the input never specifies a port.
-                port = 22
+                m = re.match (r"\[([^]]*)\]:(\d*)$", host)
+                if m:
+                    (host, port) = m.group(1,2)
+                    port = int(port)
+                else:
+                    port = 22
+                # Slightly bizarre output key format: 'type@port:hostname'
                 # XXX: does PuTTY do anything useful with literal IP[v4]s?
                 key = keytype + ("@%d:%s" % (port, host))
                 value = string.join (map (longtohex, magicnumbers), ',')
@@ -144,7 +158,7 @@ for line in fileinput.input(args):
                     sys.stdout.write("\"%s\"=\"%s\"\n"
                                      % (winmungestr(key), value))
 
-    except "Unknown SSH key type", k:
-        sys.stderr.write("Unknown SSH key type '%s', skipping\n" % k)
-    except "Skipping input line":
+    except UnknownKeyType, k:
+        sys.stderr.write("Unknown SSH key type '%s', skipping\n" % k.keytype)
+    except BlankInputLine:
         pass

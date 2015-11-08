@@ -15,6 +15,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <pwd.h>
 #include "putty.h"
 #include "storage.h"
 #include "tree234.h"
@@ -87,59 +88,113 @@ static char *unmungestr(const char *in)
     return ret;
 }
 
-static void make_filename(char *filename, int index, const char *subname)
+static char *make_filename(int index, const char *subname)
 {
-    char *home;
-    int len;
-    home = getenv("HOME");
-    if (!home)
-        home="/";
-    strncpy(filename, home, FNLEN);
-    len = strlen(filename);
+    char *env, *tmp, *ret;
+
+    /*
+     * Allow override of the PuTTY configuration location, and of
+     * specific subparts of it, by means of environment variables.
+     */
+    if (index == INDEX_DIR) {
+	struct passwd *pwd;
+
+	env = getenv("PUTTYDIR");
+	if (env)
+	    return dupstr(env);
+	env = getenv("HOME");
+	if (env)
+	    return dupprintf("%s/.putty", env);
+	pwd = getpwuid(getuid());
+	if (pwd && pwd->pw_dir)
+	    return dupprintf("%s/.putty", pwd->pw_dir);
+	return dupstr("/.putty");
+    }
+    if (index == INDEX_SESSIONDIR) {
+	env = getenv("PUTTYSESSIONS");
+	if (env)
+	    return dupstr(env);
+	tmp = make_filename(INDEX_DIR, NULL);
+	ret = dupprintf("%s/sessions", tmp);
+	sfree(tmp);
+	return ret;
+    }
     if (index == INDEX_SESSION) {
         char *munged = mungestr(subname);
-        char *fn = dupprintf("/.putty/sessions/%s", munged);
-        strncpy(filename + len, fn, FNLEN - len);
-        sfree(fn);
-        sfree(munged);
-    } else {
-        strncpy(filename + len,
-                index == INDEX_DIR ? "/.putty" :
-                index == INDEX_SESSIONDIR ? "/.putty/sessions" :
-                index == INDEX_HOSTKEYS ? "/.putty/sshhostkeys" :
-                index == INDEX_HOSTKEYS_TMP ? "/.putty/sshhostkeys.tmp" :
-                index == INDEX_RANDSEED ? "/.putty/randomseed" :
-                "/.putty/ERROR", FNLEN - len);
+	tmp = make_filename(INDEX_SESSIONDIR, NULL);
+	ret = dupprintf("%s/%s", tmp, munged);
+	sfree(tmp);
+	sfree(munged);
+	return ret;
     }
-    filename[FNLEN-1] = '\0';
+    if (index == INDEX_HOSTKEYS) {
+	env = getenv("PUTTYSSHHOSTKEYS");
+	if (env)
+	    return dupstr(env);
+	tmp = make_filename(INDEX_DIR, NULL);
+	ret = dupprintf("%s/sshhostkeys", tmp);
+	sfree(tmp);
+	return ret;
+    }
+    if (index == INDEX_HOSTKEYS_TMP) {
+	tmp = make_filename(INDEX_HOSTKEYS, NULL);
+	ret = dupprintf("%s.tmp", tmp);
+	sfree(tmp);
+	return ret;
+    }
+    if (index == INDEX_RANDSEED) {
+	env = getenv("PUTTYRANDOMSEED");
+	if (env)
+	    return dupstr(env);
+	tmp = make_filename(INDEX_DIR, NULL);
+	ret = dupprintf("%s/randomseed", tmp);
+	sfree(tmp);
+	return ret;
+    }
+    tmp = make_filename(INDEX_DIR, NULL);
+    ret = dupprintf("%s/ERROR", tmp);
+    sfree(tmp);
+    return ret;
 }
 
 void *open_settings_w(const char *sessionname, char **errmsg)
 {
-    char filename[FNLEN];
+    char *filename;
     FILE *fp;
 
     *errmsg = NULL;
 
     /*
      * Start by making sure the .putty directory and its sessions
-     * subdir actually exist. Ignore error returns from mkdir since
-     * they're perfectly likely to be `already exists', and any
-     * other error will trip us up later on so there's no real need
-     * to catch it now.
+     * subdir actually exist.
      */
-    make_filename(filename, INDEX_DIR, sessionname);
-    mkdir(filename, 0700);
-    make_filename(filename, INDEX_SESSIONDIR, sessionname);
-    mkdir(filename, 0700);
+    filename = make_filename(INDEX_DIR, NULL);
+    if (mkdir(filename, 0700) < 0 && errno != EEXIST) {
+        *errmsg = dupprintf("Unable to save session: mkdir(\"%s\") "
+                            "returned '%s'", filename, strerror(errno));
+        sfree(filename);
+        return NULL;
+    }
+    sfree(filename);
 
-    make_filename(filename, INDEX_SESSION, sessionname);
+    filename = make_filename(INDEX_SESSIONDIR, NULL);
+    if (mkdir(filename, 0700) < 0 && errno != EEXIST) {
+        *errmsg = dupprintf("Unable to save session: mkdir(\"%s\") "
+                            "returned '%s'", filename, strerror(errno));
+        sfree(filename);
+        return NULL;
+    }
+    sfree(filename);
+
+    filename = make_filename(INDEX_SESSION, sessionname);
     fp = fopen(filename, "w");
     if (!fp) {
-        *errmsg = dupprintf("Unable to create %s: %s",
-                            filename, strerror(errno));
+        *errmsg = dupprintf("Unable to save session: open(\"%s\") "
+                            "returned '%s'", filename, strerror(errno));
+	sfree(filename);
 	return NULL;                   /* can't open */
     }
+    sfree(filename);
     return fp;
 }
 
@@ -171,7 +226,7 @@ void close_settings_w(void *handle)
  * FIXME: the above comment is a bit out of date. Did it happen?
  */
 
-struct keyval {
+struct skeyval {
     const char *key;
     const char *value;
 };
@@ -180,15 +235,15 @@ static tree234 *xrmtree = NULL;
 
 int keycmp(void *av, void *bv)
 {
-    struct keyval *a = (struct keyval *)av;
-    struct keyval *b = (struct keyval *)bv;
+    struct skeyval *a = (struct skeyval *)av;
+    struct skeyval *b = (struct skeyval *)bv;
     return strcmp(a->key, b->key);
 }
 
 void provide_xrm_string(char *string)
 {
     char *p, *q, *key;
-    struct keyval *xrms, *ret;
+    struct skeyval *xrms, *ret;
 
     p = q = strchr(string, ':');
     if (!q) {
@@ -199,7 +254,7 @@ void provide_xrm_string(char *string)
     q++;
     while (p > string && p[-1] != '.' && p[-1] != '*')
 	p--;
-    xrms = snew(struct keyval);
+    xrms = snew(struct skeyval);
     key = snewn(q-p, char);
     memcpy(key, p, q-p);
     key[q-p-1] = '\0';
@@ -221,7 +276,7 @@ void provide_xrm_string(char *string)
 
 const char *get_setting(const char *key)
 {
-    struct keyval tmp, *ret;
+    struct skeyval tmp, *ret;
     tmp.key = key;
     if (xrmtree) {
 	ret = find234(xrmtree, &tmp, NULL);
@@ -233,13 +288,14 @@ const char *get_setting(const char *key)
 
 void *open_settings_r(const char *sessionname)
 {
-    char filename[FNLEN];
+    char *filename;
     FILE *fp;
     char *line;
     tree234 *ret;
 
-    make_filename(filename, INDEX_SESSION, sessionname);
+    filename = make_filename(INDEX_SESSION, sessionname);
     fp = fopen(filename, "r");
+    sfree(filename);
     if (!fp)
 	return NULL;		       /* can't open */
 
@@ -247,14 +303,16 @@ void *open_settings_r(const char *sessionname)
 
     while ( (line = fgetline(fp)) ) {
         char *value = strchr(line, '=');
-        struct keyval *kv;
+        struct skeyval *kv;
 
-        if (!value)
+        if (!value) {
+            sfree(line);
             continue;
+        }
         *value++ = '\0';
         value[strcspn(value, "\r\n")] = '\0';   /* trim trailing NL */
 
-        kv = snew(struct keyval);
+        kv = snew(struct skeyval);
         kv->key = dupstr(line);
         kv->value = dupstr(value);
         add234(ret, kv);
@@ -267,11 +325,11 @@ void *open_settings_r(const char *sessionname)
     return ret;
 }
 
-char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+char *read_setting_s(void *handle, const char *key)
 {
     tree234 *tree = (tree234 *)handle;
     const char *val;
-    struct keyval tmp, *kv;
+    struct skeyval tmp, *kv;
 
     tmp.key = key;
     if (tree != NULL &&
@@ -283,18 +341,15 @@ char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
 
     if (!val)
 	return NULL;
-    else {
-	strncpy(buffer, val, buflen);
-	buffer[buflen-1] = '\0';
-	return buffer;
-    }
+    else
+	return dupstr(val);
 }
 
 int read_setting_i(void *handle, const char *key, int defvalue)
 {
     tree234 *tree = (tree234 *)handle;
     const char *val;
-    struct keyval tmp, *kv;
+    struct skeyval tmp, *kv;
 
     tmp.key = key;
     if (tree != NULL &&
@@ -310,28 +365,75 @@ int read_setting_i(void *handle, const char *key, int defvalue)
 	return atoi(val);
 }
 
-int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
+FontSpec *read_setting_fontspec(void *handle, const char *name)
 {
-    return !!read_setting_s(handle, name, result->name, sizeof(result->name));
+    /*
+     * In GTK1-only PuTTY, we used to store font names simply as a
+     * valid X font description string (logical or alias), under a
+     * bare key such as "Font".
+     * 
+     * In GTK2 PuTTY, we have a prefix system where "client:"
+     * indicates a Pango font and "server:" an X one; existing
+     * configuration needs to be reinterpreted as having the
+     * "server:" prefix, so we change the storage key from the
+     * provided name string (e.g. "Font") to a suffixed one
+     * ("FontName").
+     */
+    char *suffname = dupcat(name, "Name", NULL);
+    char *tmp;
+
+    if ((tmp = read_setting_s(handle, suffname)) != NULL) {
+        FontSpec *fs = fontspec_new(tmp);
+	sfree(suffname);
+	sfree(tmp);
+	return fs;		       /* got new-style name */
+    }
+    sfree(suffname);
+
+    /* Fall back to old-style name. */
+    tmp = read_setting_s(handle, name);
+    if (tmp && *tmp) {
+        char *tmp2 = dupcat("server:", tmp, NULL);
+        FontSpec *fs = fontspec_new(tmp2);
+	sfree(tmp2);
+	sfree(tmp);
+	return fs;
+    } else {
+	sfree(tmp);
+	return NULL;
+    }
 }
-int read_setting_filename(void *handle, const char *name, Filename *result)
+Filename *read_setting_filename(void *handle, const char *name)
 {
-    return !!read_setting_s(handle, name, result->path, sizeof(result->path));
+    char *tmp = read_setting_s(handle, name);
+    if (tmp) {
+        Filename *ret = filename_from_str(tmp);
+	sfree(tmp);
+	return ret;
+    } else
+	return NULL;
 }
 
-void write_setting_fontspec(void *handle, const char *name, FontSpec result)
+void write_setting_fontspec(void *handle, const char *name, FontSpec *fs)
 {
-    write_setting_s(handle, name, result.name);
+    /*
+     * read_setting_fontspec had to handle two cases, but when
+     * writing our settings back out we simply always generate the
+     * new-style name.
+     */
+    char *suffname = dupcat(name, "Name", NULL);
+    write_setting_s(handle, suffname, fs->name);
+    sfree(suffname);
 }
-void write_setting_filename(void *handle, const char *name, Filename result)
+void write_setting_filename(void *handle, const char *name, Filename *result)
 {
-    write_setting_s(handle, name, result.path);
+    write_setting_s(handle, name, result->path);
 }
 
 void close_settings_r(void *handle)
 {
     tree234 *tree = (tree234 *)handle;
-    struct keyval *kv;
+    struct skeyval *kv;
 
     if (!tree)
         return;
@@ -348,18 +450,20 @@ void close_settings_r(void *handle)
 
 void del_settings(const char *sessionname)
 {
-    char filename[FNLEN];
-    make_filename(filename, INDEX_SESSION, sessionname);
+    char *filename;
+    filename = make_filename(INDEX_SESSION, sessionname);
     unlink(filename);
+    sfree(filename);
 }
 
 void *enum_settings_start(void)
 {
     DIR *dp;
-    char filename[FNLEN];
+    char *filename;
 
-    make_filename(filename, INDEX_SESSIONDIR, NULL);
+    filename = make_filename(INDEX_SESSIONDIR, NULL);
     dp = opendir(filename);
+    sfree(filename);
 
     return dp;
 }
@@ -369,19 +473,22 @@ char *enum_settings_next(void *handle, char *buffer, int buflen)
     DIR *dp = (DIR *)handle;
     struct dirent *de;
     struct stat st;
-    char fullpath[FNLEN];
-    int len;
+    char *fullpath;
+    int maxlen, thislen, len;
     char *unmunged;
 
-    make_filename(fullpath, INDEX_SESSIONDIR, NULL);
-    len = strlen(fullpath);
+    fullpath = make_filename(INDEX_SESSIONDIR, NULL);
+    maxlen = len = strlen(fullpath);
 
     while ( (de = readdir(dp)) != NULL ) {
-        if (len < FNLEN) {
-            fullpath[len] = '/';
-            strncpy(fullpath+len+1, de->d_name, FNLEN-(len+1));
-            fullpath[FNLEN-1] = '\0';
-        }
+        thislen = len + 1 + strlen(de->d_name);
+	if (maxlen < thislen) {
+	    maxlen = thislen;
+	    fullpath = sresize(fullpath, maxlen+1, char);
+	}
+	fullpath[len] = '/';
+	strncpy(fullpath+len+1, de->d_name, thislen - (len+1));
+	fullpath[thislen] = '\0';
 
         if (stat(fullpath, &st) < 0 || !S_ISREG(st.st_mode))
             continue;                  /* try another one */
@@ -390,9 +497,11 @@ char *enum_settings_next(void *handle, char *buffer, int buflen)
         strncpy(buffer, unmunged, buflen);
         buffer[buflen-1] = '\0';
         sfree(unmunged);
+	sfree(fullpath);
         return buffer;
     }
 
+    sfree(fullpath);
     return NULL;
 }
 
@@ -415,12 +524,13 @@ int verify_host_key(const char *hostname, int port,
 		    const char *keytype, const char *key)
 {
     FILE *fp;
-    char filename[FNLEN];
+    char *filename;
     char *line;
     int ret;
 
-    make_filename(filename, INDEX_HOSTKEYS, NULL);
+    filename = make_filename(INDEX_HOSTKEYS, NULL);
     fp = fopen(filename, "r");
+    sfree(filename);
     if (!fp)
 	return 1;		       /* key does not exist */
 
@@ -485,27 +595,39 @@ void store_host_key(const char *hostname, int port,
     FILE *rfp, *wfp;
     char *newtext, *line;
     int headerlen;
-    char filename[FNLEN], tmpfilename[FNLEN];
-
-    newtext = dupprintf("%s@%d:%s %s\n", keytype, port, hostname, key);
-    headerlen = 1 + strcspn(newtext, " ");   /* count the space too */
+    char *filename, *tmpfilename;
 
     /*
      * Open both the old file and a new file.
      */
-    make_filename(tmpfilename, INDEX_HOSTKEYS_TMP, NULL);
+    tmpfilename = make_filename(INDEX_HOSTKEYS_TMP, NULL);
     wfp = fopen(tmpfilename, "w");
-    if (!wfp) {
-        char dir[FNLEN];
+    if (!wfp && errno == ENOENT) {
+        char *dir;
 
-        make_filename(dir, INDEX_DIR, NULL);
-        mkdir(dir, 0700);
+        dir = make_filename(INDEX_DIR, NULL);
+        if (mkdir(dir, 0700) < 0) {
+            nonfatal("Unable to store host key: mkdir(\"%s\") "
+                     "returned '%s'", dir, strerror(errno));
+            sfree(dir);
+            sfree(tmpfilename);
+            return;
+        }
+	sfree(dir);
+
         wfp = fopen(tmpfilename, "w");
     }
-    if (!wfp)
-	return;
-    make_filename(filename, INDEX_HOSTKEYS, NULL);
+    if (!wfp) {
+        nonfatal("Unable to store host key: open(\"%s\") "
+                 "returned '%s'", tmpfilename, strerror(errno));
+        sfree(tmpfilename);
+        return;
+    }
+    filename = make_filename(INDEX_HOSTKEYS, NULL);
     rfp = fopen(filename, "r");
+
+    newtext = dupprintf("%s@%d:%s %s\n", keytype, port, hostname, key);
+    headerlen = 1 + strcspn(newtext, " ");   /* count the space too */
 
     /*
      * Copy all lines from the old file to the new one that _don't_
@@ -515,6 +637,7 @@ void store_host_key(const char *hostname, int port,
         while ( (line = fgetline(rfp)) ) {
             if (strncmp(line, newtext, headerlen))
                 fputs(line, wfp);
+            sfree(line);
         }
         fclose(rfp);
     }
@@ -526,19 +649,26 @@ void store_host_key(const char *hostname, int port,
 
     fclose(wfp);
 
-    rename(tmpfilename, filename);
+    if (rename(tmpfilename, filename) < 0) {
+        nonfatal("Unable to store host key: rename(\"%s\",\"%s\")"
+                 " returned '%s'", tmpfilename, filename,
+                 strerror(errno));
+    }
 
+    sfree(tmpfilename);
+    sfree(filename);
     sfree(newtext);
 }
 
 void read_random_seed(noise_consumer_t consumer)
 {
     int fd;
-    char fname[FNLEN];
+    char *fname;
 
-    make_filename(fname, INDEX_RANDSEED, NULL);
+    fname = make_filename(INDEX_RANDSEED, NULL);
     fd = open(fname, O_RDONLY);
-    if (fd) {
+    sfree(fname);
+    if (fd >= 0) {
 	char buf[512];
 	int ret;
 	while ( (ret = read(fd, buf, sizeof(buf))) > 0)
@@ -550,9 +680,9 @@ void read_random_seed(noise_consumer_t consumer)
 void write_random_seed(void *data, int len)
 {
     int fd;
-    char fname[FNLEN];
+    char *fname;
 
-    make_filename(fname, INDEX_RANDSEED, NULL);
+    fname = make_filename(INDEX_RANDSEED, NULL);
     /*
      * Don't truncate the random seed file if it already exists; if
      * something goes wrong half way through writing it, it would
@@ -560,21 +690,46 @@ void write_random_seed(void *data, int len)
      */
     fd = open(fname, O_CREAT | O_WRONLY, 0600);
     if (fd < 0) {
-	char dir[FNLEN];
+        if (errno != ENOENT) {
+            nonfatal("Unable to write random seed: open(\"%s\") "
+                     "returned '%s'", fname, strerror(errno));
+            sfree(fname);
+            return;
+        }
+	char *dir;
 
-	make_filename(dir, INDEX_DIR, NULL);
-	mkdir(dir, 0700);
+	dir = make_filename(INDEX_DIR, NULL);
+	if (mkdir(dir, 0700) < 0) {
+            nonfatal("Unable to write random seed: mkdir(\"%s\") "
+                     "returned '%s'", dir, strerror(errno));
+            sfree(fname);
+            sfree(dir);
+            return;
+        }
+	sfree(dir);
+
 	fd = open(fname, O_CREAT | O_WRONLY, 0600);
+        if (fd < 0) {
+            nonfatal("Unable to write random seed: open(\"%s\") "
+                     "returned '%s'", fname, strerror(errno));
+            sfree(fname);
+            return;
+        }
     }
 
     while (len > 0) {
 	int ret = write(fd, data, len);
-	if (ret <= 0) break;
+	if (ret < 0) {
+            nonfatal("Unable to write random seed: write "
+                     "returned '%s'", strerror(errno));
+            break;
+        }
 	len -= ret;
 	data = (char *)data + len;
     }
 
     close(fd);
+    sfree(fname);
 }
 
 void cleanup_all(void)

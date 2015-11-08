@@ -6,23 +6,28 @@
 #endif
 
 #include <stdio.h>		       /* for FILENAME_MAX */
+#include <stdint.h>		       /* C99 int types */
+#ifndef NO_LIBDL
+#include <dlfcn.h>		       /* Dynamic library loading */
+#endif /*  NO_LIBDL */
 #include "charset.h"
 
 struct Filename {
-    char path[FILENAME_MAX];
+    char *path;
 };
-FILE *f_open(struct Filename, char const *, int);
+FILE *f_open(const struct Filename *, char const *, int);
 
 struct FontSpec {
-    char name[256];
+    char *name;    /* may be "" to indicate no selected font at all */
 };
+struct FontSpec *fontspec_new(const char *name);
 
 typedef void *Context;                 /* FIXME: probably needs changing */
 
-typedef int OSSocket;
-#define OSSOCKET_DEFINED	       /* stop network.h using its default */
-
 extern Backend pty_backend;
+
+typedef uint32_t uint32; /* C99: uint32_t defined in stdint.h */
+#define PUTTY_UINT32_DEFINED
 
 /*
  * Under GTK, we send MA_CLICK _and_ MA_2CLK, or MA_CLICK _and_
@@ -35,6 +40,7 @@ extern Backend pty_backend;
  */
 #define HELPCTX(x) P(NULL)
 #define FILTER_KEY_FILES NULL          /* FIXME */
+#define FILTER_DYNLIB_FILES NULL       /* FIXME */
 
 /*
  * Under X, selection data must not be NUL-terminated.
@@ -51,36 +57,49 @@ unsigned long getticks(void);	       /* based on gettimeofday(2) */
 #define GETTICKCOUNT getticks
 #define TICKSPERSEC    1000	       /* we choose to use milliseconds */
 #define CURSORBLINK     450	       /* no standard way to set this */
-/* getticks() works using gettimeofday(), so it's vulnerable to system clock
- * changes causing chaos. Therefore, we provide a compensation mechanism. */
-#define TIMING_SYNC
-#define TIMING_SYNC_ANOW
-extern long tickcount_offset;
 
 #define WCHAR wchar_t
 #define BYTE unsigned char
+
+/*
+ * Unix-specific global flag
+ *
+ * FLAG_STDERR_TTY indicates that standard error might be a terminal and
+ * might get its configuration munged, so anything trying to output plain
+ * text (i.e. with newlines in it) will need to put it back into cooked
+ * mode first.  Applications setting this flag should also call
+ * stderr_tty_init() before messing with any terminal modes, and can call
+ * premsg() before outputting text to stderr and postmsg() afterwards.
+ */
+#define FLAG_STDERR_TTY 0x1000
 
 /* Things pty.c needs from pterm.c */
 char *get_x_display(void *frontend);
 int font_dimension(void *frontend, int which);/* 0 for width, 1 for height */
 long get_windowid(void *frontend);
+int frontend_is_utf8(void *frontend);
 
 /* Things gtkdlg.c needs from pterm.c */
 void *get_window(void *frontend);      /* void * to avoid depending on gtk.h */
 
 /* Things pterm.c needs from gtkdlg.c */
-int do_config_box(const char *title, Config *cfg,
+int do_config_box(const char *title, Conf *conf,
 		  int midsession, int protcfginfo);
 void fatal_message_box(void *window, char *msg);
+void nonfatal_message_box(void *window, char *msg);
 void about_box(void *window);
 void *eventlogstuff_new(void);
 void showeventlog(void *estuff, void *parentwin);
 void logevent_dlg(void *estuff, const char *string);
 int reallyclose(void *frontend);
+#ifdef MAY_REFER_TO_GTK_IN_HEADERS
+int messagebox(GtkWidget *parentwin, char *title, char *msg, int minwid, ...);
+int string_width(char *text);
+#endif
 
 /* Things pterm.c needs from {ptermm,uxputty}.c */
 char *make_default_wintitle(char *hostname);
-int process_nonoption_arg(char *arg, Config *cfg, int *allow_launch);
+int process_nonoption_arg(char *arg, Conf *conf, int *allow_launch);
 
 /* pterm.c needs this special function in xkeysym.c */
 int keysym_to_unicode(int keysym);
@@ -90,6 +109,12 @@ char *x_get_default(const char *key);
 
 /* Things uxstore.c provides to pterm.c */
 void provide_xrm_string(char *string);
+
+/* Things provided by uxcons.c */
+struct termios;
+void stderr_tty_init(void);
+void premsg(struct termios *);
+void postmsg(struct termios *);
 
 /* The interface used by uxsel.c */
 void uxsel_init(void);
@@ -129,7 +154,10 @@ void (*putty_signal(int sig, void (*func)(int)))(int);
 void block_signal(int sig, int block_it);
 
 /* uxmisc.c */
-int cloexec(int);
+void cloexec(int);
+void noncloexec(int);
+int nonblock(int);
+int no_nonblock(int);
 
 /*
  * Exports from unicode.c.
@@ -156,5 +184,10 @@ void *sk_getxdmdata(void *sock, int *lenp);
  * Exports from winser.c.
  */
 extern Backend serial_backend;
+
+/*
+ * uxpeer.c, wrapping getsockopt(SO_PEERCRED).
+ */
+int so_peercred(int fd, int *pid, int *uid, int *gid);
 
 #endif

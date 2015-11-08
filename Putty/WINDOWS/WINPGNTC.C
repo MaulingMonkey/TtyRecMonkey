@@ -7,6 +7,10 @@
 
 #include "putty.h"
 
+#ifndef NO_SECURITY
+#include "winsecur.h"
+#endif
+
 #define AGENT_COPYDATA_ID 0x804e50ba   /* random goop */
 #define AGENT_MAX_MSGLEN  8192
 
@@ -75,6 +79,9 @@ int agent_query(void *in, int inlen, void **out, int *outlen,
     unsigned char *p, *ret;
     int id, retlen;
     COPYDATASTRUCT cds;
+    SECURITY_ATTRIBUTES sa, *psa;
+    PSECURITY_DESCRIPTOR psd = NULL;
+    PSID usersid = NULL;
 
     *out = NULL;
     *outlen = 0;
@@ -83,10 +90,47 @@ int agent_query(void *in, int inlen, void **out, int *outlen,
     if (!hwnd)
 	return 1;		       /* *out == NULL, so failure */
     mapname = dupprintf("PageantRequest%08x", (unsigned)GetCurrentThreadId());
-    filemap = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
+
+    psa = NULL;
+#ifndef NO_SECURITY
+    if (got_advapi()) {
+        /*
+         * Make the file mapping we create for communication with
+         * Pageant owned by the user SID rather than the default. This
+         * should make communication between processes with slightly
+         * different contexts more reliable: in particular, command
+         * prompts launched as administrator should still be able to
+         * run PSFTPs which refer back to the owning user's
+         * unprivileged Pageant.
+         */
+        usersid = get_user_sid();
+
+        if (usersid) {
+            psd = (PSECURITY_DESCRIPTOR)
+                LocalAlloc(LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH);
+            if (psd) {
+                if (p_InitializeSecurityDescriptor
+                    (psd, SECURITY_DESCRIPTOR_REVISION) &&
+                    p_SetSecurityDescriptorOwner(psd, usersid, FALSE)) {
+                    sa.nLength = sizeof(sa);
+                    sa.bInheritHandle = TRUE;
+                    sa.lpSecurityDescriptor = psd;
+                    psa = &sa;
+                } else {
+                    LocalFree(psd);
+                    psd = NULL;
+                }
+            }
+        }
+    }
+#endif /* NO_SECURITY */
+
+    filemap = CreateFileMapping(INVALID_HANDLE_VALUE, psa, PAGE_READWRITE,
 				0, AGENT_MAX_MSGLEN, mapname);
-    if (filemap == NULL || filemap == INVALID_HANDLE_VALUE)
+    if (filemap == NULL || filemap == INVALID_HANDLE_VALUE) {
+        sfree(mapname);
 	return 1;		       /* *out == NULL, so failure */
+    }
     p = MapViewOfFile(filemap, FILE_MAP_WRITE, 0, 0, 0);
     memcpy(p, in, inlen);
     cds.dwData = AGENT_COPYDATA_ID;
@@ -113,6 +157,7 @@ int agent_query(void *in, int inlen, void **out, int *outlen,
 	data->hwnd = hwnd;
 	if (CreateThread(NULL, 0, agent_query_thread, data, 0, &threadid))
 	    return 0;
+	sfree(mapname);
 	sfree(data);
     }
 #endif
@@ -134,5 +179,9 @@ int agent_query(void *in, int inlen, void **out, int *outlen,
     }
     UnmapViewOfFile(p);
     CloseHandle(filemap);
+    sfree(mapname);
+    if (psd)
+        LocalFree(psd);
+    sfree(usersid);
     return 1;
 }

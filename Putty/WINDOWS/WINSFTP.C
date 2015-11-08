@@ -6,6 +6,7 @@
 
 #include "putty.h"
 #include "psftp.h"
+#include "ssh.h"
 #include "int64.h"
 
 char *get_ttymode(void *frontend, const char *mode) { return NULL; }
@@ -18,6 +19,12 @@ int get_userpass_input(prompts_t *p, unsigned char *in, int inlen)
 	ret = console_get_userpass_input(p, in, inlen);
     return ret;
 }
+
+void platform_get_x11_auth(struct X11Display *display, Conf *conf)
+{
+    /* Do nothing, therefore no auth. */
+}
+const int platform_uses_x11_unix_by_default = TRUE;
 
 /* ----------------------------------------------------------------------
  * File access abstraction.
@@ -62,17 +69,27 @@ char *psftp_getcwd(void)
     return ret;
 }
 
-#define TIME_POSIX_TO_WIN(t, ft) (*(LONGLONG*)&(ft) = \
-	((LONGLONG) (t) + (LONGLONG) 11644473600) * (LONGLONG) 10000000)
-#define TIME_WIN_TO_POSIX(ft, t) ((t) = (unsigned long) \
-	((*(LONGLONG*)&(ft)) / (LONGLONG) 10000000 - (LONGLONG) 11644473600))
+#define TIME_POSIX_TO_WIN(t, ft) do { \
+    ULARGE_INTEGER uli; \
+    uli.QuadPart = ((ULONGLONG)(t) + 11644473600ull) * 10000000ull; \
+    (ft).dwLowDateTime  = uli.LowPart; \
+    (ft).dwHighDateTime = uli.HighPart; \
+} while(0)
+#define TIME_WIN_TO_POSIX(ft, t) do { \
+    ULARGE_INTEGER uli; \
+    uli.LowPart  = (ft).dwLowDateTime; \
+    uli.HighPart = (ft).dwHighDateTime; \
+    uli.QuadPart = uli.QuadPart / 10000000ull - 11644473600ull; \
+    (t) = (unsigned long) uli.QuadPart; \
+} while(0)
 
 struct RFile {
     HANDLE h;
 };
 
 RFile *open_existing_file(char *name, uint64 *size,
-			  unsigned long *mtime, unsigned long *atime)
+			  unsigned long *mtime, unsigned long *atime,
+                          long *perms)
 {
     HANDLE h;
     RFile *ret;
@@ -97,12 +114,16 @@ RFile *open_existing_file(char *name, uint64 *size,
 	    TIME_WIN_TO_POSIX(wrtime, *mtime);
     }
 
+    if (perms)
+        *perms = -1;
+
     return ret;
 }
 
 int read_from_file(RFile *f, void *buffer, int length)
 {
-    int ret, read;
+    int ret;
+    DWORD read;
     ret = ReadFile(f->h, buffer, length, &read, NULL);
     if (!ret)
 	return -1;		       /* error */
@@ -120,7 +141,7 @@ struct WFile {
     HANDLE h;
 };
 
-WFile *open_new_file(char *name)
+WFile *open_new_file(char *name, long perms)
 {
     HANDLE h;
     WFile *ret;
@@ -157,7 +178,8 @@ WFile *open_existing_wfile(char *name, uint64 *size)
 
 int write_to_file(WFile *f, void *buffer, int length)
 {
-    int ret, written;
+    int ret;
+    DWORD written;
     ret = WriteFile(f->h, buffer, length, &written, NULL);
     if (!ret)
 	return -1;		       /* error */
@@ -464,17 +486,27 @@ extern int select_result(WPARAM, LPARAM);
 int do_eventsel_loop(HANDLE other_event)
 {
     int n, nhandles, nallhandles, netindex, otherindex;
-    long next, ticks;
+    unsigned long next, then;
+    long ticks;
     HANDLE *handles;
     SOCKET *sklist;
     int skcount;
-    long now = GETTICKCOUNT();
+    unsigned long now = GETTICKCOUNT();
 
-    if (run_timers(now, &next)) {
-	ticks = next - GETTICKCOUNT();
-	if (ticks < 0) ticks = 0;  /* just in case */
+    if (toplevel_callback_pending()) {
+        ticks = 0;
+        next = now;
+    } else if (run_timers(now, &next)) {
+	then = now;
+	now = GETTICKCOUNT();
+	if (now - then > next - then)
+	    ticks = 0;
+	else
+	    ticks = next - now;
     } else {
 	ticks = INFINITE;
+        /* no need to initialise next here because we can never get
+         * WAIT_TIMEOUT */
     }
 
     handles = handle_get_events(&nhandles);
@@ -558,6 +590,8 @@ int do_eventsel_loop(HANDLE other_event)
 
     sfree(handles);
 
+    run_toplevel_callbacks();
+
     if (n == WAIT_TIMEOUT) {
 	now = next;
     } else {
@@ -584,7 +618,7 @@ int ssh_sftp_loop_iteration(void)
     if (p_WSAEventSelect == NULL) {
 	fd_set readfds;
 	int ret;
-	long now = GETTICKCOUNT();
+	unsigned long now = GETTICKCOUNT(), then;
 
 	if (sftp_ssh_socket == INVALID_SOCKET)
 	    return -1;		       /* doom */
@@ -593,13 +627,17 @@ int ssh_sftp_loop_iteration(void)
 	    select_result((WPARAM) sftp_ssh_socket, (LPARAM) FD_WRITE);
 
 	do {
-	    long next, ticks;
+	    unsigned long next;
+	    long ticks;
 	    struct timeval tv, *ptv;
 
 	    if (run_timers(now, &next)) {
-		ticks = next - GETTICKCOUNT();
-		if (ticks <= 0)
-		    ticks = 1;	       /* just in case */
+		then = now;
+		now = GETTICKCOUNT();
+		if (now - then > next - then)
+		    ticks = 0;
+		else
+		    ticks = next - now;
 		tv.tv_sec = ticks / 1000;
 		tv.tv_usec = ticks % 1000 * 1000;
 		ptv = &tv;
@@ -658,6 +696,7 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
     int ret;
     struct command_read_ctx actx, *ctx = &actx;
     DWORD threadid;
+    HANDLE hThread;
 
     fputs(prompt, stdout);
     fflush(stdout);
@@ -674,8 +713,9 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
     ctx->event = CreateEvent(NULL, FALSE, FALSE, NULL);
     ctx->line = NULL;
 
-    if (!CreateThread(NULL, 0, command_read_thread,
-		      ctx, 0, &threadid)) {
+    hThread = CreateThread(NULL, 0, command_read_thread, ctx, 0, &threadid);
+    if (!hThread) {
+	CloseHandle(ctx->event);
 	fprintf(stderr, "Unable to create command input thread\n");
 	cleanup_exit(1);
     }
@@ -686,6 +726,9 @@ char *ssh_sftp_get_cmdline(char *prompt, int no_fds_ok)
 	/* Error return can only occur if netevent==NULL, and it ain't. */
 	assert(ret >= 0);
     } while (ret == 0);
+
+    CloseHandle(hThread);
+    CloseHandle(ctx->event);
 
     return ctx->line;
 }

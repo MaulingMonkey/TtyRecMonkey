@@ -20,8 +20,6 @@ AppController *controller;
  * and Unix PuTTY code.
  */
 
-const char platform_x11_best_transport[] = "unix";
-
 char *platform_get_x_display(void) {
     return NULL;
 }
@@ -85,6 +83,24 @@ static void commonfatalbox(char *p, va_list ap)
 	[alert runModal];
     }
     exit(1);
+}
+
+void nonfatal(void *frontend, char *p, ...)
+{
+    char *errorbuf;
+    NSAlert *alert;
+    va_list ap;
+
+    va_start(ap, p);
+    errorbuf = dupvprintf(p, ap);
+    va_end(ap);
+
+    alert = [[[NSAlert alloc] init] autorelease];
+    [alert addButtonWithTitle:@"Error"];
+    [alert setInformativeText:[NSString stringWithCString:errorbuf]];
+    [alert runModal];
+
+    sfree(errorbuf);
 }
 
 void fatalbox(char *p, ...)

@@ -31,29 +31,26 @@ void cleanup_exit(int code)
     exit(code);
 }
 
-Backend *select_backend(Config *cfg)
+Backend *select_backend(Conf *conf)
 {
-    int i;
-    Backend *back = NULL;
-    for (i = 0; backends[i].backend != NULL; i++)
-	if (backends[i].protocol == cfg->protocol) {
-	    back = backends[i].backend;
-	    break;
-	}
+    Backend *back = backend_from_proto(conf_get_int(conf, CONF_protocol));
     assert(back != NULL);
     return back;
 }
 
-int cfgbox(Config *cfg)
+int cfgbox(Conf *conf)
 {
-    return do_config_box("PuTTY Configuration", cfg, 0, 0);
+    char *title = dupcat(appname, " Configuration", NULL);
+    int ret = do_config_box(title, conf, 0, 0);
+    sfree(title);
+    return ret;
 }
 
 static int got_host = 0;
 
 const int use_event_log = 1, new_session = 1, saved_sessions = 1;
 
-int process_nonoption_arg(char *arg, Config *cfg, int *allow_launch)
+int process_nonoption_arg(char *arg, Conf *conf, int *allow_launch)
 {
     char *p, *q = arg;
 
@@ -64,7 +61,7 @@ int process_nonoption_arg(char *arg, Config *cfg, int *allow_launch)
          * argument, so that it will be deferred until it's a good
          * moment to run it.
          */
-        int ret = cmdline_process_param("-P", arg, 1, cfg);
+        int ret = cmdline_process_param("-P", arg, 1, conf);
         assert(ret == 2);
     } else if (!strncmp(q, "telnet:", 7)) {
         /*
@@ -77,19 +74,17 @@ int process_nonoption_arg(char *arg, Config *cfg, int *allow_launch)
         q += 7;
         if (q[0] == '/' && q[1] == '/')
             q += 2;
-        cfg->protocol = PROT_TELNET;
+        conf_set_int(conf, CONF_protocol, PROT_TELNET);
         p = q;
-        while (*p && *p != ':' && *p != '/')
-            p++;
+        p += host_strcspn(p, ":/");
         c = *p;
         if (*p)
             *p++ = '\0';
         if (c == ':')
-            cfg->port = atoi(p);
+            conf_set_int(conf, CONF_port, atoi(p));
         else
-            cfg->port = -1;
-        strncpy(cfg->host, q, sizeof(cfg->host) - 1);
-        cfg->host[sizeof(cfg->host) - 1] = '\0';
+            conf_set_int(conf, CONF_port, -1);
+	conf_set_str(conf, CONF_host, q);
         got_host = 1;
     } else {
         /*
@@ -100,8 +95,7 @@ int process_nonoption_arg(char *arg, Config *cfg, int *allow_launch)
             p++;
         if (*p)
             *p++ = '\0';
-        strncpy(cfg->host, q, sizeof(cfg->host) - 1);
-        cfg->host[sizeof(cfg->host) - 1] = '\0';
+        conf_set_str(conf, CONF_host, q);
         got_host = 1;
     }
     if (got_host)
@@ -111,14 +105,12 @@ int process_nonoption_arg(char *arg, Config *cfg, int *allow_launch)
 
 char *make_default_wintitle(char *hostname)
 {
-    return dupcat(hostname, " - PuTTY", NULL);
+    return dupcat(hostname, " - ", appname, NULL);
 }
 
 /*
  * X11-forwarding-related things suitable for Gtk app.
  */
-
-const char platform_x11_best_transport[] = "unix";
 
 char *platform_get_x_display(void) {
     const char *display;
@@ -129,21 +121,25 @@ char *platform_get_x_display(void) {
     return dupstr(display);
 }
 
+const int share_can_be_downstream = TRUE;
+const int share_can_be_upstream = TRUE;
+
 int main(int argc, char **argv)
 {
     extern int pt_main(int argc, char **argv);
+    int ret;
+
     sk_init();
     flags = FLAG_VERBOSE | FLAG_INTERACTIVE;
     default_protocol = be_default_protocol;
     /* Find the appropriate default port. */
     {
-	int i;
+	Backend *b = backend_from_proto(default_protocol);
 	default_port = 0; /* illegal */
-	for (i = 0; backends[i].backend != NULL; i++)
-	    if (backends[i].protocol == default_protocol) {
-		default_port = backends[i].backend->default_port;
-		break;
-	    }
+	if (b)
+	    default_port = b->default_port;
     }
-    return pt_main(argc, argv);
+    ret = pt_main(argc, argv);
+    cleanup_exit(ret);
+    return ret;             /* not reached, but placates optimisers */
 }

@@ -16,16 +16,18 @@
 #include "winhelp.h"
 
 struct Filename {
-    char path[FILENAME_MAX];
+    char *path;
 };
-#define f_open(filename, mode, isprivate) ( fopen((filename).path, (mode)) )
+#define f_open(filename, mode, isprivate) ( fopen((filename)->path, (mode)) )
 
 struct FontSpec {
-    char name[64];
+    char *name;
     int isbold;
     int height;
     int charset;
 };
+struct FontSpec *fontspec_new(const char *name,
+                               int bold, int height, int charset);
 
 #ifndef CLEARTYPE_QUALITY
 #define CLEARTYPE_QUALITY 5
@@ -35,6 +37,9 @@ struct FontSpec {
     (fq) == FQ_ANTIALIASED ? ANTIALIASED_QUALITY : \
     (fq) == FQ_NONANTIALIASED ? NONANTIALIASED_QUALITY : \
     CLEARTYPE_QUALITY)
+
+#define PLATFORM_IS_UTF16 /* enable UTF-16 processing when exchanging
+			   * wchar_t strings with environment */
 
 /*
  * Where we can, we use GetWindowLongPtr and friends because they're
@@ -70,6 +75,37 @@ struct FontSpec {
 #define BOXRESULT (DLGWINDOWEXTRA + sizeof(LONG_PTR))
 #define DF_END 0x0001
 
+#ifndef NO_SECUREZEROMEMORY
+#define PLATFORM_HAS_SMEMCLR /* inhibit cross-platform one in misc.c */
+#endif
+
+/*
+ * Dynamically linked functions. These come in two flavours:
+ *
+ *  - GET_WINDOWS_FUNCTION does not expose "name" to the preprocessor,
+ *    so will always dynamically link against exactly what is specified
+ *    in "name". If you're not sure, use this one.
+ *
+ *  - GET_WINDOWS_FUNCTION_PP allows "name" to be redirected via
+ *    preprocessor definitions like "#define foo bar"; this is principally
+ *    intended for the ANSI/Unicode DoSomething/DoSomethingA/DoSomethingW.
+ *    If your function has an argument of type "LPTSTR" or similar, this
+ *    is the variant to use.
+ *    (However, it can't always be used, as it trips over more complicated
+ *    macro trickery such as the WspiapiGetAddrInfo wrapper for getaddrinfo.)
+ *
+ * (DECL_WINDOWS_FUNCTION works with both these variants.)
+ */
+#define DECL_WINDOWS_FUNCTION(linkage, rettype, name, params) \
+    typedef rettype (WINAPI *t_##name) params; \
+    linkage t_##name p_##name
+#define STR1(x) #x
+#define STR(x) STR1(x)
+#define GET_WINDOWS_FUNCTION_PP(module, name) \
+    (p_##name = module ? (t_##name) GetProcAddress(module, STR(name)) : NULL)
+#define GET_WINDOWS_FUNCTION(module, name) \
+    (p_##name = module ? (t_##name) GetProcAddress(module, #name) : NULL)
+
 /*
  * Global variables. Most modules declare these `extern', but
  * window.c will do `#define PUTTY_DO_GLOBALS' before including this
@@ -85,7 +121,7 @@ struct FontSpec {
 
 #ifndef DONE_TYPEDEFS
 #define DONE_TYPEDEFS
-typedef struct config_tag Config;
+typedef struct conf_tag Conf;
 typedef struct backend_tag Backend;
 typedef struct terminal_tag Terminal;
 #endif
@@ -96,6 +132,14 @@ typedef struct terminal_tag Terminal;
 #define PUTTY_REG_GPARENT "Software"
 #define PUTTY_REG_GPARENT_CHILD "SimonTatham"
 
+/* Result values for the jumplist registry functions. */
+#define JUMPLISTREG_OK 0
+#define JUMPLISTREG_ERROR_INVALID_PARAMETER 1
+#define JUMPLISTREG_ERROR_KEYOPENCREATE_FAILURE 2
+#define JUMPLISTREG_ERROR_VALUEREAD_FAILURE 3
+#define JUMPLISTREG_ERROR_VALUEWRITE_FAILURE 4
+#define JUMPLISTREG_ERROR_INVALID_VALUE 5
+
 #define PUTTY_HELP_FILE "putty.hlp"
 #define PUTTY_CHM_FILE "putty.chm"
 #define PUTTY_HELP_CONTENTS "putty.cnt"
@@ -105,8 +149,28 @@ typedef struct terminal_tag Terminal;
 #define TICKSPERSEC 1000	       /* GetTickCount returns milliseconds */
 
 #define DEFAULT_CODEPAGE CP_ACP
+#define USES_VTLINE_HACK
 
 typedef HDC Context;
+
+typedef unsigned int uint32; /* int is 32-bits on Win32 and Win64. */
+#define PUTTY_UINT32_DEFINED
+
+#ifndef NO_GSSAPI
+/*
+ * GSS-API stuff
+ */
+#define GSS_CC CALLBACK
+/*
+typedef struct Ssh_gss_buf {
+    size_t length;
+    char *value;
+} Ssh_gss_buf;
+
+#define SSH_GSS_EMPTY_BUF (Ssh_gss_buf) {0,NULL}
+typedef void *Ssh_gss_name;
+*/
+#endif
 
 /*
  * Window handles for the windows that can be running during a
@@ -173,15 +237,13 @@ GLOBAL void *logctx;
 			      "All Files (*.*)\0*\0\0\0")
 #define FILTER_WAVE_FILES ("Wave Files (*.wav)\0*.WAV\0" \
 			       "All Files (*.*)\0*\0\0\0")
+#define FILTER_DYNLIB_FILES ("Dynamic Library Files (*.dll)\0*.dll\0" \
+				 "All Files (*.*)\0*\0\0\0")
 
 /*
- * On some versions of Windows, it has been known for WM_TIMER to
- * occasionally get its callback time simply wrong, and call us
- * back several minutes early. Defining these symbols enables
- * compensation code in timing.c.
+ * Exports from winnet.c.
  */
-#define TIMING_SYNC
-#define TIMING_SYNC_TICKCOUNT
+extern int select_result(WPARAM, LPARAM);
 
 /*
  * winnet.c dynamically loads WinSock 2 or WinSock 1 depending on
@@ -189,16 +251,16 @@ GLOBAL void *logctx;
  * that module must be exported from it as function pointers. So
  * here they are.
  */
-extern int (WINAPI *p_WSAAsyncSelect)
-    (SOCKET s, HWND hWnd, u_int wMsg, long lEvent);
-extern int (WINAPI *p_WSAEventSelect)
-    (SOCKET s, WSAEVENT hEventObject, long lNetworkEvents);
-extern int (WINAPI *p_select)
-    (int nfds, fd_set FAR * readfds, fd_set FAR * writefds,
-     fd_set FAR *exceptfds, const struct timeval FAR * timeout);
-extern int (WINAPI *p_WSAGetLastError)(void);
-extern int (WINAPI *p_WSAEnumNetworkEvents)
-    (SOCKET s, WSAEVENT hEventObject, LPWSANETWORKEVENTS lpNetworkEvents);
+DECL_WINDOWS_FUNCTION(GLOBAL, int, WSAAsyncSelect,
+		      (SOCKET, HWND, u_int, long));
+DECL_WINDOWS_FUNCTION(GLOBAL, int, WSAEventSelect,
+		      (SOCKET, WSAEVENT, long));
+DECL_WINDOWS_FUNCTION(GLOBAL, int, select,
+		      (int, fd_set FAR *, fd_set FAR *,
+		       fd_set FAR *, const struct timeval FAR *));
+DECL_WINDOWS_FUNCTION(GLOBAL, int, WSAGetLastError, (void));
+DECL_WINDOWS_FUNCTION(GLOBAL, int, WSAEnumNetworkEvents,
+		      (SOCKET, WSAEVENT, LPWSANETWORKEVENTS));
 
 extern int socket_writable(SOCKET skt);
 
@@ -226,6 +288,7 @@ BOOL request_file(filereq *state, OPENFILENAME *of, int preserve, int save);
 filereq *filereq_new(void);
 void filereq_free(filereq *state);
 int message_box(LPCTSTR text, LPCTSTR caption, DWORD style, DWORD helpctxid);
+char *GetDlgItemText_alloc(HWND hwnd, int id);
 void split_into_argv(char *, int *, char ***, char ***);
 
 /*
@@ -257,6 +320,7 @@ struct dlgparam {
     struct { unsigned char r, g, b, ok; } coloursel_result;   /* 0-255 */
     tree234 *privdata;		       /* stores per-control private data */
     int ended, endresult;	       /* has the dialog been ended? */
+    int fixed_pitch_fonts;             /* are we constrained to fixed fonts? */
 };
 
 /*
@@ -314,6 +378,10 @@ void fwdsetter(struct ctlpos *cp, int listid, char *stext, int sid,
 	       char *e2stext, int e2sid, int e2id,
 	       char *btext, int bid,
 	       char *r1text, int r1id, char *r2text, int r2id);
+
+void dlg_auto_set_fixed_pitch_flag(void *dlg);
+int dlg_get_fixed_pitch_flag(void *dlg);
+void dlg_set_fixed_pitch_flag(void *dlg, int flag);
 
 #define MAX_SHORTCUTS_PER_CTRL 16
 
@@ -397,6 +465,8 @@ void show_help(HWND hwnd);
  */
 extern OSVERSIONINFO osVersion;
 BOOL init_winver(void);
+HMODULE load_system32_dll(const char *libname);
+const char *win_strerror(int error);
 
 /*
  * Exports from sizetip.c.
@@ -408,7 +478,7 @@ void EnableSizeTip(int bEnable);
  * Exports from unicode.c.
  */
 struct unicode_data;
-void init_ucs(Config *, struct unicode_data *);
+void init_ucs(Conf *, struct unicode_data *);
 
 /*
  * Exports from winhandl.c.
@@ -424,15 +494,18 @@ struct handle *handle_input_new(HANDLE handle, handle_inputfn_t gotdata,
 struct handle *handle_output_new(HANDLE handle, handle_outputfn_t sentdata,
 				 void *privdata, int flags);
 int handle_write(struct handle *h, const void *data, int len);
+void handle_write_eof(struct handle *h);
 HANDLE *handle_get_events(int *nevents);
 void handle_free(struct handle *h);
 void handle_got_event(HANDLE event);
 void handle_unthrottle(struct handle *h, int backlog);
 int handle_backlog(struct handle *h);
 void *handle_get_privdata(struct handle *h);
+struct handle *handle_add_foreign_event(HANDLE event,
+                                        void (*callback)(void *), void *ctx);
 
 /*
- * pageantc.c needs to schedule callbacks for asynchronous agent
+ * winpgntc.c needs to schedule callbacks for asynchronous agent
  * requests. This has to be done differently in GUI and console, so
  * there's an exported function used for the purpose.
  * 
@@ -447,5 +520,36 @@ void agent_schedule_callback(void (*callback)(void *, void *, int),
  * Exports from winser.c.
  */
 extern Backend serial_backend;
+
+/*
+ * Exports from winjump.c.
+ */
+#define JUMPLIST_SUPPORTED             /* suppress #defines in putty.h */
+void add_session_to_jumplist(const char * const sessionname);
+void remove_session_from_jumplist(const char * const sessionname);
+void clear_jumplist(void);
+
+/*
+ * Extra functions in winstore.c over and above the interface in
+ * storage.h.
+ *
+ * These functions manipulate the Registry section which mirrors the
+ * current Windows 7 jump list. (Because the real jump list storage is
+ * write-only, we need to keep another copy of whatever we put in it,
+ * so that we can put in a slightly modified version the next time.)
+ */
+
+/* Adds a saved session to the registry jump list mirror. 'item' is a
+ * string naming a saved session. */
+int add_to_jumplist_registry(const char *item);
+
+/* Removes an item from the registry jump list mirror. */
+int remove_from_jumplist_registry(const char *item);
+
+/* Returns the current jump list entries from the registry. Caller
+ * must free the returned pointer, which points to a contiguous
+ * sequence of NUL-terminated strings in memory, terminated with an
+ * empty one. */
+char *get_jumplist_registry_entries(void);
 
 #endif

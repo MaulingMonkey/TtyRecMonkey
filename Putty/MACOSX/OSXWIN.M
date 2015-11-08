@@ -109,11 +109,11 @@
 	nfg = nbg;
 	nbg = t;
     }
-    if (cfg.bold_colour && (attr & ATTR_BOLD)) {
+    if ((cfg.bold_style & 2) && (attr & ATTR_BOLD)) {
 	if (nfg < 16) nfg |= 8;
 	else if (nfg >= 256) nfg |= 1;
     }
-    if (cfg.bold_colour && (attr & ATTR_BLINK)) {
+    if ((cfg.bold_style & 2) && (attr & ATTR_BLINK)) {
 	if (nbg < 16) nbg |= 8;
 	else if (nbg >= 256) nbg |= 1;
     }
@@ -129,7 +129,7 @@
 	widefactor = 1;
     }
 
-    /* FIXME: ATTR_BOLD without cfg.bold_colour */
+    /* FIXME: ATTR_BOLD if cfg.bold_style & 1 */
 
     if ((lattr & LATTR_MODE) != LATTR_NORM) {
 	x *= 2;
@@ -232,15 +232,9 @@
     /*
      * Set up a backend.
      */
-    {
-	int i;
+    back = backend_from_proto(cfg.protocol);
+    if (!back)
 	back = &pty_backend;
-	for (i = 0; backends[i].backend != NULL; i++)
-	    if (backends[i].protocol == cfg.protocol) {
-		back = backends[i].backend;
-		break;
-	    }
-    }
 
     {
 	const char *error;
@@ -743,23 +737,8 @@
 	  case NSLeftArrowFunctionKey: xkey = 'D'; break;
 	}
 	if (xkey) {
-	    /*
-	     * The arrow keys normally do ESC [ A and so on. In
-	     * app cursor keys mode they do ESC O A instead.
-	     * Ctrl toggles the two modes.
-	     */
-	    if (term->vt52_mode) {
-		output[end++] = '\033';
-		output[end++] = xkey;
-	    } else if (!term->app_cursor_keys ^ !(m & NSControlKeyMask)) {
-		output[end++] = '\033';
-		output[end++] = 'O';
-		output[end++] = xkey;
-	    } else {
-		output[end++] = '\033';
-		output[end++] = '[';
-		output[end++] = xkey;
-	    }
+	    end += format_arrow_key(output+end, term, xkey,
+				    m & NSControlKeyMask);
 	    goto done;
 	}
     }
@@ -978,7 +957,7 @@ void palette_set(void *frontend, int n, int r, int g, int b)
 
     if (n >= 16)
 	n += 256 - 16;
-    if (n > NALLCOLOURS)
+    if (n >= NALLCOLOURS)
 	return;
     [win setColour:n r:r/255.0 g:g/255.0 b:b/255.0];
 

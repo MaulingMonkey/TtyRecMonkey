@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <assert.h>
 #include "putty.h"
 #include "storage.h"
 
@@ -17,15 +18,16 @@
 #define CSIDL_LOCAL_APPDATA 0x001c
 #endif
 
+static const char *const reg_jumplist_key = PUTTY_REG_POS "\\Jumplist";
+static const char *const reg_jumplist_value = "Recent sessions";
 static const char *const puttystr = PUTTY_REG_POS "\\Sessions";
 
 static const char hex[16] = "0123456789ABCDEF";
 
 static int tried_shgetfolderpath = FALSE;
 static HMODULE shell32_module = NULL;
-typedef HRESULT (WINAPI *p_SHGetFolderPath_t)
-    (HWND, int, HANDLE, DWORD, LPTSTR);
-static p_SHGetFolderPath_t p_SHGetFolderPath = NULL;
+DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA, 
+		      (HWND, int, HANDLE, DWORD, LPSTR));
 
 static void mungestr(const char *in, char *out)
 {
@@ -149,17 +151,33 @@ void *open_settings_r(const char *sessionname)
     return (void *) sesskey;
 }
 
-char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+char *read_setting_s(void *handle, const char *key)
 {
-    DWORD type, size;
-    size = buflen;
+    DWORD type, allocsize, size;
+    char *ret;
 
-    if (!handle ||
-	RegQueryValueEx((HKEY) handle, key, 0,
-			&type, buffer, &size) != ERROR_SUCCESS ||
-	type != REG_SZ) return NULL;
-    else
-	return buffer;
+    if (!handle)
+	return NULL;
+
+    /* Find out the type and size of the data. */
+    if (RegQueryValueEx((HKEY) handle, key, 0,
+			&type, NULL, &size) != ERROR_SUCCESS ||
+	type != REG_SZ)
+	return NULL;
+
+    allocsize = size+1;         /* allow for an extra NUL if needed */
+    ret = snewn(allocsize, char);
+    if (RegQueryValueEx((HKEY) handle, key, 0,
+			&type, ret, &size) != ERROR_SUCCESS ||
+	type != REG_SZ) {
+        sfree(ret);
+        return NULL;
+    }
+    assert(size < allocsize);
+    ret[size] = '\0'; /* add an extra NUL in case RegQueryValueEx
+                       * didn't supply one */
+
+    return ret;
 }
 
 int read_setting_i(void *handle, const char *key, int defvalue)
@@ -176,53 +194,76 @@ int read_setting_i(void *handle, const char *key, int defvalue)
 	return val;
 }
 
-int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
+FontSpec *read_setting_fontspec(void *handle, const char *name)
 {
     char *settingname;
-    FontSpec ret;
+    char *fontname;
+    FontSpec *ret;
+    int isbold, height, charset;
 
-    if (!read_setting_s(handle, name, ret.name, sizeof(ret.name)))
-	return 0;
+    fontname = read_setting_s(handle, name);
+    if (!fontname)
+	return NULL;
+
     settingname = dupcat(name, "IsBold", NULL);
-    ret.isbold = read_setting_i(handle, settingname, -1);
+    isbold = read_setting_i(handle, settingname, -1);
     sfree(settingname);
-    if (ret.isbold == -1) return 0;
+    if (isbold == -1) {
+        sfree(fontname);
+        return NULL;
+    }
+
     settingname = dupcat(name, "CharSet", NULL);
-    ret.charset = read_setting_i(handle, settingname, -1);
+    charset = read_setting_i(handle, settingname, -1);
     sfree(settingname);
-    if (ret.charset == -1) return 0;
+    if (charset == -1) {
+        sfree(fontname);
+        return NULL;
+    }
+
     settingname = dupcat(name, "Height", NULL);
-    ret.height = read_setting_i(handle, settingname, INT_MIN);
+    height = read_setting_i(handle, settingname, INT_MIN);
     sfree(settingname);
-    if (ret.height == INT_MIN) return 0;
-    *result = ret;
-    return 1;
+    if (height == INT_MIN) {
+        sfree(fontname);
+        return NULL;
+    }
+
+    ret = fontspec_new(fontname, isbold, height, charset);
+    sfree(fontname);
+    return ret;
 }
 
-void write_setting_fontspec(void *handle, const char *name, FontSpec font)
+void write_setting_fontspec(void *handle, const char *name, FontSpec *font)
 {
     char *settingname;
 
-    write_setting_s(handle, name, font.name);
+    write_setting_s(handle, name, font->name);
     settingname = dupcat(name, "IsBold", NULL);
-    write_setting_i(handle, settingname, font.isbold);
+    write_setting_i(handle, settingname, font->isbold);
     sfree(settingname);
     settingname = dupcat(name, "CharSet", NULL);
-    write_setting_i(handle, settingname, font.charset);
+    write_setting_i(handle, settingname, font->charset);
     sfree(settingname);
     settingname = dupcat(name, "Height", NULL);
-    write_setting_i(handle, settingname, font.height);
+    write_setting_i(handle, settingname, font->height);
     sfree(settingname);
 }
 
-int read_setting_filename(void *handle, const char *name, Filename *result)
+Filename *read_setting_filename(void *handle, const char *name)
 {
-    return !!read_setting_s(handle, name, result->path, sizeof(result->path));
+    char *tmp = read_setting_s(handle, name);
+    if (tmp) {
+        Filename *ret = filename_from_str(tmp);
+	sfree(tmp);
+	return ret;
+    } else
+	return NULL;
 }
 
-void write_setting_filename(void *handle, const char *name, Filename result)
+void write_setting_filename(void *handle, const char *name, Filename *result)
 {
-    write_setting_s(handle, name, result.path);
+    write_setting_s(handle, name, result->path);
 }
 
 void close_settings_r(void *handle)
@@ -244,6 +285,8 @@ void del_settings(const char *sessionname)
     sfree(p);
 
     RegCloseKey(subkey1);
+
+    remove_session_from_jumplist(sessionname);
 }
 
 struct enumsettings {
@@ -317,16 +360,18 @@ int verify_host_key(const char *hostname, int port,
      * Now read a saved key in from the registry and see what it
      * says.
      */
-    otherstr = snewn(len, char);
     regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
 
     hostkey_regname(regname, hostname, port, keytype);
 
     if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
-		   &rkey) != ERROR_SUCCESS)
+		   &rkey) != ERROR_SUCCESS) {
+        sfree(regname);
 	return 1;		       /* key does not exist in registry */
+    }
 
     readlen = len;
+    otherstr = snewn(len, char);
     ret = RegQueryValueEx(rkey, regname, NULL, &type, otherstr, &readlen);
 
     if (ret != ERROR_SUCCESS && ret != ERROR_MORE_DATA &&
@@ -389,6 +434,8 @@ int verify_host_key(const char *hostname, int port,
 		RegSetValueEx(rkey, regname, 0, REG_SZ, otherstr,
 			      strlen(otherstr) + 1);
 	}
+
+        sfree(oldstyle);
     }
 
     RegCloseKey(rkey);
@@ -433,7 +480,10 @@ enum { DEL, OPEN_R, OPEN_W };
 static int try_random_seed(char const *path, int action, HANDLE *ret)
 {
     if (action == DEL) {
-	remove(path);
+        if (!DeleteFile(path) && GetLastError() != ERROR_FILE_NOT_FOUND) {
+            nonfatal("Unable to delete '%s': %s", path,
+                     win_strerror(GetLastError()));
+        }
 	*ret = INVALID_HANDLE_VALUE;
 	return FALSE;		       /* so we'll do the next ones too */
     }
@@ -498,22 +548,20 @@ static HANDLE access_random_seed(int action)
 	 * on older versions of Windows if we cared enough.
 	 * However, the invocation below requires IE5+ anyway,
 	 * so stuff that. */
-	shell32_module = LoadLibrary("SHELL32.DLL");
-	if (shell32_module) {
-	    p_SHGetFolderPath = (p_SHGetFolderPath_t)
-		GetProcAddress(shell32_module, "SHGetFolderPathA");
-	}
+	shell32_module = load_system32_dll("shell32.dll");
+	GET_WINDOWS_FUNCTION(shell32_module, SHGetFolderPathA);
+	tried_shgetfolderpath = TRUE;
     }
-    if (p_SHGetFolderPath) {
-	if (SUCCEEDED(p_SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA,
-					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
+    if (p_SHGetFolderPathA) {
+	if (SUCCEEDED(p_SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA,
+					 NULL, SHGFP_TYPE_CURRENT, seedpath))) {
 	    strcat(seedpath, "\\PUTTY.RND");
 	    if (try_random_seed(seedpath, action, &rethandle))
 		return rethandle;
 	}
 
-	if (SUCCEEDED(p_SHGetFolderPath(NULL, CSIDL_APPDATA,
-					NULL, SHGFP_TYPE_CURRENT, seedpath))) {
+	if (SUCCEEDED(p_SHGetFolderPathA(NULL, CSIDL_APPDATA,
+					 NULL, SHGFP_TYPE_CURRENT, seedpath))) {
 	    strcat(seedpath, "\\PUTTY.RND");
 	    if (try_random_seed(seedpath, action, &rethandle))
 		return rethandle;
@@ -585,6 +633,169 @@ void write_random_seed(void *data, int len)
 }
 
 /*
+ * Internal function supporting the jump list registry code. All the
+ * functions to add, remove and read the list have substantially
+ * similar content, so this is a generalisation of all of them which
+ * transforms the list in the registry by prepending 'add' (if
+ * non-null), removing 'rem' from what's left (if non-null), and
+ * returning the resulting concatenated list of strings in 'out' (if
+ * non-null).
+ */
+static int transform_jumplist_registry
+    (const char *add, const char *rem, char **out)
+{
+    int ret;
+    HKEY pjumplist_key, psettings_tmp;
+    DWORD type;
+    int value_length;
+    char *old_value, *new_value;
+    char *piterator_old, *piterator_new, *piterator_tmp;
+
+    ret = RegCreateKeyEx(HKEY_CURRENT_USER, reg_jumplist_key, 0, NULL,
+                         REG_OPTION_NON_VOLATILE, (KEY_READ | KEY_WRITE), NULL,
+                         &pjumplist_key, NULL);
+    if (ret != ERROR_SUCCESS) {
+	return JUMPLISTREG_ERROR_KEYOPENCREATE_FAILURE;
+    }
+
+    /* Get current list of saved sessions in the registry. */
+    value_length = 200;
+    old_value = snewn(value_length, char);
+    ret = RegQueryValueEx(pjumplist_key, reg_jumplist_value, NULL, &type,
+                          old_value, &value_length);
+    /* When the passed buffer is too small, ERROR_MORE_DATA is
+     * returned and the required size is returned in the length
+     * argument. */
+    if (ret == ERROR_MORE_DATA) {
+        sfree(old_value);
+        old_value = snewn(value_length, char);
+        ret = RegQueryValueEx(pjumplist_key, reg_jumplist_value, NULL, &type,
+                              old_value, &value_length);
+    }
+
+    if (ret == ERROR_FILE_NOT_FOUND) {
+        /* Value doesn't exist yet. Start from an empty value. */
+        *old_value = '\0';
+        *(old_value + 1) = '\0';
+    } else if (ret != ERROR_SUCCESS) {
+        /* Some non-recoverable error occurred. */
+        sfree(old_value);
+        RegCloseKey(pjumplist_key);
+        return JUMPLISTREG_ERROR_VALUEREAD_FAILURE;
+    } else if (type != REG_MULTI_SZ) {
+        /* The value present in the registry has the wrong type: we
+         * try to delete it and start from an empty value. */
+        ret = RegDeleteValue(pjumplist_key, reg_jumplist_value);
+        if (ret != ERROR_SUCCESS) {
+            sfree(old_value);
+            RegCloseKey(pjumplist_key);
+            return JUMPLISTREG_ERROR_VALUEREAD_FAILURE;
+        }
+
+        *old_value = '\0';
+        *(old_value + 1) = '\0';
+    }
+
+    /* Check validity of registry data: REG_MULTI_SZ value must end
+     * with \0\0. */
+    piterator_tmp = old_value;
+    while (((piterator_tmp - old_value) < (value_length - 1)) &&
+           !(*piterator_tmp == '\0' && *(piterator_tmp+1) == '\0')) {
+        ++piterator_tmp;
+    }
+
+    if ((piterator_tmp - old_value) >= (value_length-1)) {
+        /* Invalid value. Start from an empty value. */
+        *old_value = '\0';
+        *(old_value + 1) = '\0';
+    }
+
+    /*
+     * Modify the list, if we're modifying.
+     */
+    if (add || rem) {
+        /* Walk through the existing list and construct the new list of
+         * saved sessions. */
+        new_value = snewn(value_length + (add ? strlen(add) + 1 : 0), char);
+        piterator_new = new_value;
+        piterator_old = old_value;
+
+        /* First add the new item to the beginning of the list. */
+        if (add) {
+            strcpy(piterator_new, add);
+            piterator_new += strlen(piterator_new) + 1;
+        }
+        /* Now add the existing list, taking care to leave out the removed
+         * item, if it was already in the existing list. */
+        while (*piterator_old != '\0') {
+            if (!rem || strcmp(piterator_old, rem) != 0) {
+                /* Check if this is a valid session, otherwise don't add. */
+                psettings_tmp = open_settings_r(piterator_old);
+                if (psettings_tmp != NULL) {
+                    close_settings_r(psettings_tmp);
+                    strcpy(piterator_new, piterator_old);
+                    piterator_new += strlen(piterator_new) + 1;
+                }
+            }
+            piterator_old += strlen(piterator_old) + 1;
+        }
+        *piterator_new = '\0';
+        ++piterator_new;
+
+        /* Save the new list to the registry. */
+        ret = RegSetValueEx(pjumplist_key, reg_jumplist_value, 0, REG_MULTI_SZ,
+                            new_value, piterator_new - new_value);
+
+        sfree(old_value);
+        old_value = new_value;
+    } else
+        ret = ERROR_SUCCESS;
+
+    /*
+     * Either return or free the result.
+     */
+    if (out && ret == ERROR_SUCCESS)
+        *out = old_value;
+    else
+        sfree(old_value);
+
+    /* Clean up and return. */
+    RegCloseKey(pjumplist_key);
+
+    if (ret != ERROR_SUCCESS) {
+        return JUMPLISTREG_ERROR_VALUEWRITE_FAILURE;
+    } else {
+        return JUMPLISTREG_OK;
+    }
+}
+
+/* Adds a new entry to the jumplist entries in the registry. */
+int add_to_jumplist_registry(const char *item)
+{
+    return transform_jumplist_registry(item, item, NULL);
+}
+
+/* Removes an item from the jumplist entries in the registry. */
+int remove_from_jumplist_registry(const char *item)
+{
+    return transform_jumplist_registry(NULL, item, NULL);
+}
+
+/* Returns the jumplist entries from the registry. Caller must free
+ * the returned pointer. */
+char *get_jumplist_registry_entries (void)
+{
+    char *list_value;
+
+    if (transform_jumplist_registry(NULL,NULL,&list_value) != JUMPLISTREG_OK) {
+	list_value = snewn(2, char);
+        *list_value = '\0';
+        *(list_value + 1) = '\0';
+    }
+    return list_value;
+}
+
+/*
  * Recursively delete a registry key and everything under it.
  */
 static void registry_recursive_remove(HKEY key)
@@ -614,6 +825,12 @@ void cleanup_all(void)
      * locations.
      */
     access_random_seed(DEL);
+
+    /* ------------------------------------------------------------
+     * Ask Windows to delete any jump list information associated
+     * with this installation of PuTTY.
+     */
+    clear_jumplist();
 
     /* ------------------------------------------------------------
      * Destroy all registry information associated with PuTTY.
